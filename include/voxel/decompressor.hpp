@@ -16,11 +16,13 @@ VM_EXPORT
 	template <typename Voxel = char>
 	struct Decompressor final : vm::NoCopy, vm::NoMove
 	{
-		Decompressor( Reader &reader )
+		Decompressor( Reader &reader ) :
+		  reader( reader )
 		{
 			auto len = reader.size();
 			reader.seek( len - sizeof( CompressMeta ) );
 			auto meta = CompressMeta::read_from( reader );
+			block_len = meta.block_len;
 			reader.seek( meta.index_offset );
 			vm::println( "total blocks: {}", meta.block_count );
 			for ( int i = 0; i != meta.block_count; ++i ) {
@@ -30,8 +32,32 @@ VM_EXPORT
 			}
 		}
 
+		void get( Idx const &idx, Writer &writer )
+		{
+			if ( index.find( idx ) == index.end() ) {
+				return;
+			}
+			auto &blk = index[ idx ];
+			PartReader part( reader, blk.offset, blk.len );
+			video.decompress( part, writer );
+		}
+		void get( Idx const &idx, ostream &os, size_t offset = 0 )
+		{
+			StreamWriter writer( os, offset, block_len );
+			get( idx, writer );
+		}
+		void get( Idx const &idx, Voxel *block )
+		{
+			auto ptr = reinterpret_cast<car *>( block );
+			SliceWriter writer( ptr, 0, block_len );
+			put( idx, reader );
+		}
+
 	private:
 		std::map<Idx, BlockIndex> index;
+		Reader &reader;
+		size_t block_len;
+		video::Decompressor video;
 	};
 }
 

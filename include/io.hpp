@@ -32,6 +32,38 @@ VM_EXPORT
 		virtual void write( char const *src, size_t len ) = 0;
 	};
 
+	struct PartReader : Reader
+	{
+		PartReader( Reader &_, size_t offset, size_t len ) :
+		  _( _ ),
+		  offset( offset ),
+		  len( len )
+		{
+			_.seek( offset );
+		}
+
+		void seek( size_t pos ) override
+		{
+			_.seek( pos + offset );
+		}
+		size_t tell() const override
+		{
+			return _.tell() + offset;
+		}
+		size_t size() const override
+		{
+			return len;
+		}
+		size_t read( char *dst, size_t dlen ) override
+		{
+			return _.read( dst, dlen );
+		}
+
+	private:
+		Reader &_;
+		size_t offset;
+		size_t len;
+	};
 	struct SliceReader : Reader
 	{
 		SliceReader( char const *src, size_t slen ) :

@@ -81,6 +81,7 @@ struct CompressMeta final
 {
 	VM_DEFINE_ATTRIBUTE( uint64_t, block_count );
 	VM_DEFINE_ATTRIBUTE( uint64_t, index_offset );
+	VM_DEFINE_ATTRIBUTE( uint64_t, block_len );
 
 	void write_to( Writer &writer ) const
 	{

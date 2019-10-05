@@ -41,7 +41,8 @@ VM_EXPORT
 
 			auto meta = CompressMeta{}
 						  .set_block_count( n )
-						  .set_index_offset( a );
+						  .set_index_offset( a )
+						  .set_block_len( block_len );
 			meta.write_to( writer );
 		}
 
