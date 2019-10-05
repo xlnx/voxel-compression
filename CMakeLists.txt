@@ -14,29 +14,50 @@ vm_external_module(
   GIT_TAG        master
 )
 
-file(GLOB_RECURSE VOCOMP_SOURCES
+file(GLOB_RECURSE VOCODEC_SOURCES
   src/*.cc
-  src/*.cu
+  src/**/*.cc
 )
 
 find_package(CUDA REQUIRED)
 
-cuda_add_executable(vocomp ${VOCOMP_SOURCES})
-target_include_directories(vocomp PUBLIC
+find_path(FFMPEG_INCLUDE_DIR
+  NAMES ffmpeg/libavcodec/avcodec.h
+  PATHS ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES}
+)
+set(FFMPEG_INCLUDE_DIR ${FFMPEG_INCLUDE_DIR}/ffmpeg)
+find_library(AVUTIL_LIB
+  NAMES avutil
+  PATHS ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES}
+)
+find_library(AVCODEC_LIB
+  NAMES avcodec
+  PATHS ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES}
+)
+find_library(AVFORMAT_LIB
+  NAMES avformat
+  PATHS ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES}
+)
+
+cuda_add_library(vocodec ${VOCODEC_SOURCES})
+target_include_directories(vocodec PUBLIC
   include
-  nvcodec/include
-  nvcodec/Samples/External/FFmpeg/include
+  ${FFMPEG_INCLUDE_DIR}
   ${CUDA_INCLUDE_DIRS}
+)
+target_include_directories(vocodec PRIVATE
+  nvcodec/include
 )
 file(GLOB_RECURSE NVCODEC_LIBS
   nvcodec/lib/linux/stubs/x86_64/*
 )
-target_link_libraries(vocomp
-  avutil
-  avcodec
-  avformat
+target_link_libraries(vocodec
+  ${AVUTIL_LIB}
+  ${AVCODEC_LIB}
+  ${AVFORMAT_LIB}
   ${NVCODEC_LIBS}
-  cuda
 )
-vm_target_dependency(vocomp VMUtils PUBLIC)
-vm_target_dependency(vocomp cudafx PUBLIC)
+vm_target_dependency(vocodec VMUtils PUBLIC)
+vm_target_dependency(vocodec cudafx PUBLIC)
+
+add_subdirectory(tools)
