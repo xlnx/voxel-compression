@@ -37,12 +37,16 @@ VM_EXPORT
 		VM_DEFINE_ATTRIBUTE( EncodePreset, encode_preset ) = EncodePreset::Default;
 	};
 
-	struct Compressor final : vm::NoCopy
+	struct Compressor final : Pipe, vm::NoCopy
 	{
 		Compressor( CompressOptions const & = CompressOptions{} );
 		~Compressor();
 
 		void compress( Reader &reader, Writer &writer );
+		void transfer( Reader &reader, Writer &writer ) override
+		{
+			compress( reader, writer );
+		}
 
 	private:
 		vm::Box<CompressorImpl> _;

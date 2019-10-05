@@ -13,12 +13,12 @@ int main( int argc, char **argv )
 	options.add_options()(
 	  "o,output", "put compressed data into <file>", cxxopts::value<string>() )(
 	  "h,help", "print this help message" )(
-	  "x,block_x", "block.x", cxxopts::value<size_t>()->default_value( "256" ) )(
-	  "y,block_y", "block.y", cxxopts::value<size_t>()->default_value( "256" ) )(
-	  "z,block_z", "block.z", cxxopts::value<size_t>()->default_value( "256" ) )(
-	  "X,dim_x", "dim.x", cxxopts::value<size_t>()->default_value( "4" ) )(
-	  "Y,dim_y", "dim.y", cxxopts::value<size_t>()->default_value( "4" ) )(
-	  "Z,dim_z", "dim.z", cxxopts::value<size_t>()->default_value( "4" ) );
+	  "x,block_x", "block.x", cxxopts::value<size_t>()->default_value( "1024" ) )(
+	  "y,block_y", "block.y", cxxopts::value<size_t>()->default_value( "1024" ) )(
+	  "z,block_z", "block.z", cxxopts::value<size_t>()->default_value( "1024" ) )(
+	  "X,dim_x", "dim.x", cxxopts::value<size_t>()->default_value( "2" ) )(
+	  "Y,dim_y", "dim.y", cxxopts::value<size_t>()->default_value( "2" ) )(
+	  "Z,dim_z", "dim.z", cxxopts::value<size_t>()->default_value( "2" ) );
 
 	auto opts = options.parse( argc, argv );
 	if ( opts.count( "h" ) ) {
