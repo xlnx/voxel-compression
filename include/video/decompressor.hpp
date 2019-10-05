@@ -12,12 +12,16 @@ struct DecompressorImpl;
 
 VM_EXPORT
 {
-	struct Decompressor final : vm::NoCopy
+	struct Decompressor final : Pipe, vm::NoCopy
 	{
 		Decompressor();
 		~Decompressor();
 
 		void decompress( Reader &reader, Writer &writer );
+		void transfer( Reader &reader, Writer &writer ) override
+		{
+			decompress( reader, writer );
+		}
 
 	private:
 		vm::Box<DecompressorImpl> _;

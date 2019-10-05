@@ -197,6 +197,11 @@ VM_EXPORT
 		size_t offset;
 		size_t dend;
 	};
+
+	struct Pipe : vm::Dynamic
+	{
+		virtual void transfer( Reader &reader, Writer &writer ) = 0;
+	};
 }
 
 VM_END_MODULE()

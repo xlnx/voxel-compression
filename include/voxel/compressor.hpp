@@ -19,11 +19,11 @@ VM_EXPORT
 	{
 		Compressor( Idx const &block_dim,
 					UnboundedWriter &writer,
-					video::Compressor &video ) :
+					Pipe &_ ) :
 		  block_dim( block_dim ),
 		  block_len( block_dim.total() * sizeof( Voxel ) / sizeof( char ) ),
 		  writer( writer ),
-		  video( video )
+		  _( _ )
 		{
 		}
 		~Compressor()
@@ -46,13 +46,14 @@ VM_EXPORT
 			meta.write_to( writer );
 		}
 
-		void put( Idx const &idx, Reader &reader )
+		template <typename R>  // R: Reader
+		void put( Idx const &idx, R &reader )
 		{
 			if ( index.find( idx ) != index.end() ) {
 				return;
 			}
 			auto a = writer.tell();
-			video.compress( reader, writer );
+			_.transfer( reader, writer );
 			auto b = writer.tell();
 			fend = std::max( b, fend );
 			auto len = b - a;
@@ -77,7 +78,7 @@ VM_EXPORT
 		size_t block_len;
 		size_t fend = 0;
 		UnboundedWriter &writer;
-		video::Compressor &video;
+		Pipe &_;
 		std::map<Idx, BlockIndex> index;
 	};
 }

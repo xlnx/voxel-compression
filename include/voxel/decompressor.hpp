@@ -16,8 +16,9 @@ VM_EXPORT
 	template <typename Voxel = char>
 	struct Decompressor final : vm::NoCopy, vm::NoMove
 	{
-		Decompressor( Reader &reader ) :
-		  reader( reader )
+		Decompressor( Reader &reader, Pipe &_ ) :
+		  reader( reader ),
+		  _( _ )
 		{
 			auto len = reader.size();
 			reader.seek( len - sizeof( CompressMeta ) );
@@ -32,14 +33,15 @@ VM_EXPORT
 			}
 		}
 
-		void get( Idx const &idx, Writer &writer )
+		template <typename W>  // W: Writer
+		void get( Idx const &idx, W &writer )
 		{
 			if ( index.find( idx ) == index.end() ) {
 				return;
 			}
 			auto &blk = index[ idx ];
 			PartReader part( reader, blk.offset, blk.len );
-			video.decompress( part, writer );
+			_.transfer( part, writer );
 		}
 		void get( Idx const &idx, ostream &os, size_t offset = 0 )
 		{
@@ -57,7 +59,7 @@ VM_EXPORT
 		std::map<Idx, BlockIndex> index;
 		Reader &reader;
 		size_t block_len;
-		video::Decompressor video;
+		Pipe &_;
 	};
 }
 
