@@ -1,4 +1,4 @@
-#include <video/compressor.hpp>
+#include <vocomp/video/compressor.hpp>
 
 #include <nv/NvEncoder.h>
 #include <nv/NvEncoderCuda.h>

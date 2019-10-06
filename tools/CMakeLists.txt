@@ -1,5 +1,7 @@
-add_executable(voprod voprod.cc)
-vm_target_dependency(voprod vocodec PRIVATE)
+# add_executable(voprod voprod.cc)
 
-# add_executable(vodecomp vodecomp.cc)
-# vm_target_dependency(vodecomp vocodec PRIVATE)
+if(VOCOMP_BUILD_REFINER)
+  add_executable(voxel-refine voxel-refine.cc)
+  # add_executable(vodecomp vodecomp.cc)
+  vm_target_dependency(voxel-refine vorefine PRIVATE)
+endif()

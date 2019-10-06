@@ -2,9 +2,8 @@
 
 #include <map>
 
-#include <video/compressor.hpp>
-#include <unbounded_io.hpp>
-#include <voxel/internal/util.hpp>
+#include "../unbounded_io.hpp"
+#include "internal/util.hpp"
 
 namespace vol
 {

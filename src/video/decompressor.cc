@@ -1,4 +1,4 @@
-#include <video/decompressor.hpp>
+#include <vocomp/video/decompressor.hpp>
 
 #include <nv/NvDecoder.h>
 #include <nv/FFmpegDemuxer.h>
