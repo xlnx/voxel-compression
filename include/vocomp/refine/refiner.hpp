@@ -30,7 +30,9 @@ VM_EXPORT
 	{
 		Refiner( RefinerOptions const &opts );
 		~Refiner();
-		bool convert( vol::Pipe &pipe, std::size_t suggest_mem_gb = 128 );
+		bool convert( vol::Pipe &pipe,
+					  std::size_t suggest_mem_gb = 128,
+					  std::size_t frame_len = 0 );
 
 	private:
 		vm::Box<RefinerImpl> _;

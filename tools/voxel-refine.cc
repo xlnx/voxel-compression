@@ -38,6 +38,7 @@ int main( int argc, char **argv )
 		while ( height > 4096 ) {
 			height = height >> 1;
 		}
+		auto frame_len = width * height * 3 / 2;
 
 		auto opts = vol::video::CompressOptions{}
 					  .set_encode_method( vol::video::EncodeMethod::H264 )
@@ -56,7 +57,7 @@ int main( int argc, char **argv )
 						  .set_input( input )
 						  .set_output( output );
 			vol::refine::Refiner refiner( opts );
-			refiner.convert( comp, mem );
+			refiner.convert( comp, mem, frame_len );
 		}
 	} catch ( std::exception &e ) {
 		std::cout << e.what() << std::endl;

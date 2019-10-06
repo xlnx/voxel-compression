@@ -83,7 +83,7 @@ public:
 		header.write_to( writer );
 	}
 
-	bool convert( vol::Pipe &pipe, std::size_t suggest_mem_gb )
+	bool convert( vol::Pipe &pipe, std::size_t suggest_mem_gb, size_t frame_len )
 	{
 		vol::UnboundedStreamWriter writer( output, sizeof( Header ) );
 		voxel::Compressor comp( voxel::Idx{}
@@ -322,12 +322,60 @@ public:
 					auto buf = reinterpret_cast<char const *>( write_buffer.buffer.get() );
 					for ( int i = 0; i != nblocks; ++i ) {
 						auto j = index + i;
-						SliceReader reader( buf + one_block * i, one_block );
+						SliceReader inner( buf + one_block * i, one_block );
+
+						struct PaddedReader : Reader
+						{
+							PaddedReader( Reader &_, size_t len, char fill = 0 ) :
+							  _( _ ),
+							  len( len ),
+							  fill( fill )
+							{
+							}
+							void seek( size_t pos ) override
+							{
+								_.seek( pos );
+							}
+							size_t tell() const override
+							{
+								return _.tell() + p;
+							}
+							size_t size() const override
+							{
+								return len;
+							}
+							size_t read( char *dst, size_t dlen ) override
+							{
+								auto nread = _.read( dst, dlen );
+								auto remain = len - _.size() - p;
+								if ( nread < dlen && remain > 0 ) {
+									auto nfill = std::min( dlen - nread, remain );
+									p += nfill;
+									memset( dst + nread, fill, sizeof( fill ) * nfill );
+									nread += nfill;
+								}
+								return nread;
+							}
+
+						private:
+							Reader &_;
+							size_t len;
+							size_t p = 0;
+							char fill;
+						};
+
 						auto idx = voxel::Idx{}
 									 .set_x( j % dim.x )
 									 .set_y( j / dim.x % dim.y )
 									 .set_z( j / ( dim.x * dim.y ) % dim.z );
-						comp.put( idx, reader );
+
+						if ( frame_len ) {
+							auto nframes = RoundUpDivide( inner.size(), frame_len );
+							PaddedReader reader( inner, frame_len * nframes );
+							comp.put( idx, reader );
+						} else {
+							comp.put( idx, inner );
+						}
 					}
 				}
 				written_blocks += dim.x * dim.y;
@@ -375,9 +423,9 @@ VM_EXPORT
 	Refiner::~Refiner()
 	{
 	}
-	bool Refiner::convert( vol::Pipe & pipe, size_t suggest_mem_gb )
+	bool Refiner::convert( vol::Pipe & pipe, size_t suggest_mem_gb, size_t frame_len )
 	{
-		return _->convert( pipe, suggest_mem_gb );
+		return _->convert( pipe, suggest_mem_gb, frame_len );
 	}
 }
 
