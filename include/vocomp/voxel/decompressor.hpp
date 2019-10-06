@@ -2,8 +2,7 @@
 
 #include <map>
 
-#include <video/decompressor.hpp>
-#include <voxel/internal/util.hpp>
+#include "internal/util.hpp"
 
 namespace vol
 {
@@ -50,9 +49,9 @@ VM_EXPORT
 		}
 		void get( Idx const &idx, Voxel *block )
 		{
-			auto ptr = reinterpret_cast<car *>( block );
+			auto ptr = reinterpret_cast<char *>( block );
 			SliceWriter writer( ptr, 0, block_len );
-			put( idx, reader );
+			get( idx, reader );
 		}
 
 	private:

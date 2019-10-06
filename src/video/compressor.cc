@@ -1,4 +1,4 @@
-#include <video/compressor.hpp>
+#include <vocomp/video/compressor.hpp>
 
 #include <nv/NvEncoder.h>
 #include <nv/NvEncoderCuda.h>
@@ -13,7 +13,22 @@ using namespace std;
 struct CompressorImpl final : vm::NoCopy, vm::NoMove
 {
 	CompressorImpl( CompressOptions const &_ ) :
-	  pEnc( new NvEncoderCuda( ctx, 1024, 1024, NV_ENC_BUFFER_FORMAT_IYUV ) )
+	  pEnc( new NvEncoderCuda( ctx, _.width, _.height, [&] {
+		  switch ( _.pixel_format ) {
+		  default:
+		  case PixelFormat::IYUV: return NV_ENC_BUFFER_FORMAT_IYUV;
+		  case PixelFormat::YV12: return NV_ENC_BUFFER_FORMAT_YV12;
+		  case PixelFormat::NV12: return NV_ENC_BUFFER_FORMAT_NV12;
+		  case PixelFormat::YUV42010Bit: return NV_ENC_BUFFER_FORMAT_YUV420_10BIT;
+		  case PixelFormat::YUV444: return NV_ENC_BUFFER_FORMAT_YUV444;
+		  case PixelFormat::YUV44410Bit: return NV_ENC_BUFFER_FORMAT_YUV444_10BIT;
+		  case PixelFormat::ARGB: return NV_ENC_BUFFER_FORMAT_ARGB;
+		  case PixelFormat::ARGB10: return NV_ENC_BUFFER_FORMAT_ARGB10;
+		  case PixelFormat::AYUV: return NV_ENC_BUFFER_FORMAT_AYUV;
+		  case PixelFormat::ABGR: return NV_ENC_BUFFER_FORMAT_ABGR;
+		  case PixelFormat::ABGR10: return NV_ENC_BUFFER_FORMAT_ABGR10;
+		  }
+	  }() ) )
 	{
 		NV_ENC_CONFIG encode_cfg = { NV_ENC_CONFIG_VER };
 		encode_cfg.profileGUID = NV_ENC_H264_PROFILE_BASELINE_GUID;

@@ -1,7 +1,7 @@
 #include <fstream>
-#include <video/compressor.hpp>
-#include <voxel/compressor.hpp>
-#include <unbounded_io.hpp>
+#include <vocomp/video/compressor.hpp>
+#include <vocomp/voxel/compressor.hpp>
+#include <vocomp/unbounded_io.hpp>
 #include "cxxopts.hpp"
 
 using namespace std;

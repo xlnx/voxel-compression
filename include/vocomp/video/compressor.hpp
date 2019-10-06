@@ -3,7 +3,7 @@
 #include <VMUtils/nonnull.hpp>
 #include <VMUtils/concepts.hpp>
 #include <VMUtils/attributes.hpp>
-#include "io.hpp"
+#include "../io.hpp"
 
 namespace vol
 {
@@ -30,11 +30,28 @@ VM_EXPORT
 		LosslessDefault,
 		LosslessHP
 	};
+	enum class PixelFormat : char
+	{
+		IYUV,
+		YV12,
+		NV12,
+		YUV42010Bit,
+		YUV444,
+		YUV44410Bit,
+		ARGB,
+		ARGB10,
+		AYUV,
+		ABGR,
+		ABGR10
+	};
 
 	struct CompressOptions
 	{
 		VM_DEFINE_ATTRIBUTE( EncodeMethod, encode_method ) = EncodeMethod::H264;
 		VM_DEFINE_ATTRIBUTE( EncodePreset, encode_preset ) = EncodePreset::Default;
+		VM_DEFINE_ATTRIBUTE( unsigned, width ) = 1024;
+		VM_DEFINE_ATTRIBUTE( unsigned, height ) = 1024;
+		VM_DEFINE_ATTRIBUTE( PixelFormat, pixel_format ) = PixelFormat::IYUV;
 	};
 
 	struct Compressor final : Pipe, vm::NoCopy
