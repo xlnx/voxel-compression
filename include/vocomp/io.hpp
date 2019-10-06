@@ -48,7 +48,7 @@ VM_EXPORT
 		}
 		size_t tell() const override
 		{
-			return _.tell() + offset;
+			return _.tell() - offset;
 		}
 		size_t size() const override
 		{
@@ -56,7 +56,7 @@ VM_EXPORT
 		}
 		size_t read( char *dst, size_t dlen ) override
 		{
-			return _.read( dst, dlen );
+			return _.read( dst, std::min( dlen, len - tell() ) );
 		}
 
 	private:
