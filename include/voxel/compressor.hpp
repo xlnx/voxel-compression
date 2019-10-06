@@ -29,7 +29,6 @@ VM_EXPORT
 		~Compressor()
 		{
 			writer.seek( fend );
-			auto a = writer.tell();
 			uint64_t n = 0;
 			for ( auto &e : index ) {
 				++n;
@@ -41,7 +40,7 @@ VM_EXPORT
 
 			auto meta = CompressMeta{}
 						  .set_block_count( n )
-						  .set_index_offset( a )
+						  .set_index_offset( fend )
 						  .set_block_len( block_len );
 			meta.write_to( writer );
 		}
