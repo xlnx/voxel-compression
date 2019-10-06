@@ -51,10 +51,13 @@ VM_EXPORT
 				return;
 			}
 			auto a = writer.tell();
+			// auto x = reader.tell();
 			_.transfer( reader, writer );
 			auto b = writer.tell();
+			// auto y = reader.tell();
 			fend = std::max( b, fend );
 			auto len = b - a;
+			// vm::println( "put {} with len {} to {}", idx, y - x, make_pair( a, len ) );
 			index[ idx ] = BlockIndex{}
 							 .set_offset( a )
 							 .set_len( len );

@@ -30,7 +30,7 @@ int main( int argc, char **argv )
 
 	try {
 		std::size_t block_size = 1 << log;
-		auto width = block_size * block_size / 4;
+		auto width = block_size * block_size / 2;
 		auto height = block_size;
 		while ( width > 4096 ) {
 			width = width >> 1;
@@ -41,10 +41,10 @@ int main( int argc, char **argv )
 
 		auto opts = vol::video::CompressOptions{}
 					  .set_encode_method( vol::video::EncodeMethod::H264 )
-					  .set_encode_preset( vol::video::EncodePreset::LowLatencyDefault )
+					  .set_encode_preset( vol::video::EncodePreset::Default )
 					  .set_width( width )
 					  .set_height( height )
-					  .set_pixel_format( vol::video::PixelFormat::ARGB );
+					  .set_pixel_format( vol::video::PixelFormat::IYUV );
 		vol::video::Compressor comp( opts );
 
 		{
