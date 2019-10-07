@@ -202,6 +202,17 @@ VM_EXPORT
 	{
 		virtual void transfer( Reader &reader, Writer &writer ) = 0;
 	};
+
+	struct Copy : Pipe
+	{
+		virtual void transfer( Reader &reader, Writer &writer ) override
+		{
+			static char _[ 4096 ];
+			while ( auto nread = reader.read( _, sizeof( _ ) ) ) {
+				writer.write( _, nread );
+			}
+		}
+	};
 }
 
 VM_END_MODULE()

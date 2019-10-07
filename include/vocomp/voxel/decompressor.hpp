@@ -40,7 +40,10 @@ VM_EXPORT
 			}
 			auto &blk = index[ idx ];
 			PartReader part( reader, blk.offset, blk.len );
+			// auto a = writer.tell();
 			_.transfer( part, writer );
+			// auto b = writer.tell();
+			// vm::println( "get {} with len {} from {}", idx, b - a, blk );
 		}
 		void get( Idx const &idx, ostream &os, size_t offset = 0 )
 		{
