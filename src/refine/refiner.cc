@@ -56,7 +56,7 @@ public:
 		vm::println( "dim: {}", dim );
 		vm::println( "adjusted: {}", adjusted );
 
-		if ( !output.is_open() ) {
+		if ( not output.is_open() ) {
 			throw std::runtime_error( "can not open lvd file" );
 		}
 	}
@@ -83,14 +83,19 @@ public:
 		header.write_to( writer );
 	}
 
-	bool convert( vol::Pipe &pipe, std::size_t suggest_mem_gb, size_t frame_len )
+	bool convert( ConvertOptions const &opts )
 	{
+		auto pipe = opts.pipe;
+		if (not pipe) {
+			pipe = std::make_shared<vol::Copy>();
+		}
+
 		vol::UnboundedStreamWriter writer( output, sizeof( Header ) );
-		voxel::Compressor comp( voxel::Idx{}
+		voxel::Compressor<> comp( voxel::Idx{}
 								  .set_x( block_size )
 								  .set_y( block_size )
 								  .set_z( block_size ),
-								writer, pipe );
+								writer, *pipe );
 
 		struct Buffer
 		{
@@ -115,9 +120,9 @@ public:
 		const auto [ ncols_per_stride, nrows_per_stride, stride_interval ] = [&] {
 			std::size_t gb_to_bytes = std::size_t( 1024 ) /*Mb*/ * 1024 /*Kb*/ * 1024 /*Bytes*/;
 			std::size_t block_size_in_bytes = sizeof( Voxel ) * nvoxels_per_block;
-			std::size_t mem_size_in_bytes = suggest_mem_gb * gb_to_bytes;
+			std::size_t mem_size_in_bytes = opts.suggest_mem_gb * gb_to_bytes;
 			int nblocks_in_mem = mem_size_in_bytes / block_size_in_bytes / 2 /*two buffers*/;
-			if ( !nblocks_in_mem ) {
+			if ( not nblocks_in_mem ) {
 				throw std::runtime_error( "total memory < block size" );
 			}
 			// const int maxBlocksPerStride = 2;
@@ -125,7 +130,7 @@ public:
 			int nrows_per_stride = std::min( nblocks_in_mem / ncols, nrows );
 			int ncols_per_stride = ncols;
 			int stride_interval = 1;
-			if ( !nrows_per_stride ) { /*nblocks_in_mem < nBlocksPerRow*/
+			if ( not nrows_per_stride ) { /*nblocks_in_mem < nBlocksPerRow*/
 				nrows_per_stride = 1;
 				ncols_per_stride = nblocks_in_mem;
 				stride_interval = ysl::RoundUpDivide( ncols, ncols_per_stride );
@@ -369,9 +374,9 @@ public:
 									 .set_y( j / dim.x % dim.y )
 									 .set_z( j / ( dim.x * dim.y ) % dim.z );
 
-						if ( frame_len ) {
-							auto nframes = RoundUpDivide( inner.size(), frame_len );
-							PaddedReader reader( inner, frame_len * nframes );
+						if ( opts.frame_len ) {
+							auto nframes = RoundUpDivide( inner.size(), opts.frame_len );
+							PaddedReader reader( inner, opts.frame_len * nframes );
 							comp.put( idx, reader );
 						} else {
 							comp.put( idx, inner );
@@ -423,9 +428,9 @@ VM_EXPORT
 	Refiner::~Refiner()
 	{
 	}
-	bool Refiner::convert( vol::Pipe & pipe, size_t suggest_mem_gb, size_t frame_len )
+	bool Refiner::convert( ConvertOptions const &opts )
 	{
-		return _->convert( pipe, suggest_mem_gb, frame_len );
+		return _->convert( opts );
 	}
 }
 

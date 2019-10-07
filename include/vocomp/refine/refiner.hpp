@@ -26,13 +26,18 @@ VM_EXPORT
 		VM_DEFINE_ATTRIBUTE( string, output );
 	};
 
+	struct ConvertOptions
+	{
+		VM_DEFINE_ATTRIBUTE(std::shared_ptr<vol::Pipe>, pipe);
+		VM_DEFINE_ATTRIBUTE(size_t, suggest_mem_gb) = 128;
+		VM_DEFINE_ATTRIBUTE(size_t, frame_len) = 0;
+	};
+
 	struct Refiner final : vm::NoCopy
 	{
 		Refiner( RefinerOptions const &opts );
 		~Refiner();
-		bool convert( vol::Pipe &pipe,
-					  std::size_t suggest_mem_gb = 128,
-					  std::size_t frame_len = 0 );
+		bool convert( ConvertOptions const &opts = ConvertOptions{} );
 
 	private:
 		vm::Box<RefinerImpl> _;
