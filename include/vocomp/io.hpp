@@ -48,7 +48,7 @@ VM_EXPORT
 		}
 		size_t tell() const override
 		{
-			return _.tell() + offset;
+			return _.tell() - offset;
 		}
 		size_t size() const override
 		{
@@ -56,7 +56,7 @@ VM_EXPORT
 		}
 		size_t read( char *dst, size_t dlen ) override
 		{
-			return _.read( dst, dlen );
+			return _.read( dst, std::min( dlen, len - tell() ) );
 		}
 
 	private:
@@ -201,6 +201,17 @@ VM_EXPORT
 	struct Pipe : vm::Dynamic
 	{
 		virtual void transfer( Reader &reader, Writer &writer ) = 0;
+	};
+
+	struct Copy : Pipe
+	{
+		virtual void transfer( Reader &reader, Writer &writer ) override
+		{
+			static char _[ 4096 ];
+			while ( auto nread = reader.read( _, sizeof( _ ) ) ) {
+				writer.write( _, nread );
+			}
+		}
 	};
 }
 
