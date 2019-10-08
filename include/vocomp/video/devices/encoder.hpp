@@ -52,6 +52,7 @@ struct Encoder : vm::Dynamic, vm::NoCopy
 protected:
 	static void get_pixel_format( void *dst, PixelFormat format );
 	virtual void *get_nv_impl();
+	bool init_done = false;
 };
 
 VM_END_MODULE()

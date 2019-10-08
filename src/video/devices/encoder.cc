@@ -63,12 +63,15 @@ void Encoder::init( EncodeMethod method, EncodePreset preset )
 	auto impl = reinterpret_cast<NvEncoder *>( get_nv_impl() );
 	impl->CreateDefaultEncoderParams( &params, *encode_guid, *preset_guid );
 	impl->CreateEncoder( &params );
+	init_done = true;
 }
 
 Encoder::~Encoder()
 {
 	auto impl = reinterpret_cast<NvEncoder *>( get_nv_impl() );
-	impl->DestroyEncoder();
+	if ( init_done ) {
+		impl->DestroyEncoder();
+	}
 }
 
 void *Encoder::get_nv_impl()
