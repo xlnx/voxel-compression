@@ -1,7 +1,7 @@
 #include <vocomp/video/decompressor.hpp>
 
-#include <nv/NvDecoder.h>
-#include <nv/FFmpegDemuxer.h>
+#include <nvcodec/NvDecoder.h>
+#include <nvcodec/FFmpegDemuxer.h>
 #include <cudafx/driver/context.hpp>
 
 namespace vol

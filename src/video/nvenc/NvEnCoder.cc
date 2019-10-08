@@ -9,7 +9,7 @@
 *
 */
 
-#include "nv/NvEncoder.h"
+#include "nvcodec/NvEncoder.h"
 
 #ifndef _WIN32
 #include <cstring>

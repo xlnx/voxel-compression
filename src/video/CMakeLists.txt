@@ -1,30 +1,47 @@
-set(VOCOMP_SRC
-  compressor.cc decompressor.cc
+file(GLOB_RECURSE VOCOMP_SRC
+  compressor.cc
+  **/*.cc
+  **/*.cu
 )
 
-if(VOCOMP_BUILD_NVCODEC)
-  file(GLOB_RECURSE NVCODEC_SRC
-	nv/*.cc
-	nv/*.cu
-  )
+if(CUDA_FOUND AND VOCOMP_ENABLE_CUDA)
   vm_external_module(
 	GIT_REPOSITORY https://github.com/cad420/cuda-fx
 	GIT_TAG        master
   )
-  find_package(CUDA REQUIRED)
-  file(GLOB_RECURSE NVCODEC_LIBS
-	${CMAKE_CURRENT_SOURCE_DIR}/../../nvcodec/lib/linux/stubs/x86_64/*
-  )
 
-  cuda_add_library(vocomp ${VOCOMP_SRC} ${NVCODEC_SRC})
-  target_link_libraries(vocomp ${NVCODEC_LIBS})
-  target_include_directories(vocomp PRIVATE
-    ${CUDA_INCLUDE_DIRS}
-	${CMAKE_CURRENT_SOURCE_DIR}/../../nvcodec/include
-  )
-  vm_target_dependency(vocomp cudafx PUBLIC)
+  cuda_add_library(vocomp ${VOCOMP_SRC})
+  if(MSVC)
+    target_link_libraries(vocomp
+  	  ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/Win32/nvcuvid.lib
+    )
+  else()
+    target_link_libraries(vocomp
+  	  ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/linux/stubs/x86_64/libnvcuvid.so
+    )
+  endif()
+  # target_include_directories(vocomp PRIVATE
+  #   ${CUDA_INCLUDE_DIRS}
+  # )
+  vm_target_dependency(vocomp cudafx PRIVATE)
 else()
   add_library(vocomp ${VOCOMP_SRC})  
+endif()
+
+if(MSVC)
+  target_link_libraries(vocomp
+  	${CMAKE_CURRENT_SOURCE_DIR}/../../lib/Win32/nvencodeapi.lib
+  )
+else()
+  target_link_libraries(vocomp
+  	${CMAKE_CURRENT_SOURCE_DIR}/../../lib/linux/stubs/x86_64/libnvidia-encode.so
+  )
+endif()
+
+if(VOCOMP_ENABLE_GL)
+  find_package(GLEW REQUIRED)
+  target_include_directories(vocomp PRIVATE ${GLEW_INCLUDE_DIRS})
+  target_link_libraries(vocomp GL ${GLEW_LIBRARIES})
 endif()
 
 find_path(FFMPEG_INCLUDE_DIR
@@ -51,6 +68,8 @@ target_link_libraries(vocomp
 )
 target_include_directories(vocomp PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+)
+target_include_directories(vocomp PRIVATE
   ${FFMPEG_INCLUDE_DIR}
 )
 vm_target_dependency(vocomp VMUtils PUBLIC)

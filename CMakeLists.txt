@@ -10,7 +10,22 @@ vm_external_module(
   GIT_TAG        master
 )
 
-option(VOCOMP_BUILD_NVCODEC "build nvcodec with cuda" ON)
+find_package(CUDA)
+
+option(VOCOMP_ENABLE_CUDA "enable cuda compression" ON)
+option(VOCOMP_ENABLE_GL "enable gl compression" ON)
+option(VOCOMP_ENABLE_D3D9 "enable d3d9 compression" ON)
+
+if(CUDA_FOUND AND VOCOMP_ENABLE_CUDA)
+  add_definitions(-DVOCOMP_ENABLE_CUDA)
+endif()
+if(VOCOMP_ENABLE_GL)
+  add_definitions(-DVOCOMP_ENABLE_GL)
+endif()
+if(VOCOMP_ENABLE_D3D9)
+  add_definitions(-DVOCOMP_ENABLE_D3D9)
+endif()
+
 option(VOCOMP_BUILD_REFINER "build refiner library" ON)
 option(VOCOMP_BUILD_EXTRACTOR "build extractor library" ON)
 option(VOCOMP_BUILD_TOOLS "build tools" ON)
