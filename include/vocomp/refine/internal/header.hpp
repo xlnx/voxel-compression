@@ -12,6 +12,7 @@ using namespace std;
 
 struct Header
 {
+	uint64_t version = 0;
 	struct
 	{
 		VM_DEFINE_ATTRIBUTE( uint64_t, x );
