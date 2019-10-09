@@ -34,6 +34,7 @@ VM_EXPORT
 	struct Compressor final : Pipe, vm::NoCopy
 	{
 		Compressor( CompressOptions const &_ = CompressOptions{} );
+		~Compressor();
 
 		void transfer( Reader &reader, Writer &writer ) override
 		{

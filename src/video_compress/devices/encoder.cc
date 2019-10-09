@@ -1,6 +1,6 @@
 #include <vocomp/video/devices/encoder.hpp>
 
-#ifdef VOCOMP_ENABLE
+#ifdef VOCOMP_BUILD_VIDEO_COMPRESS
 #include <nvcodec/NvEncoder.h>
 #endif
 
@@ -10,7 +10,7 @@ VM_BEGIN_MODULE( video )
 
 void Encoder::init( EncodeMethod method, EncodePreset preset )
 {
-#ifdef VOCOMP_ENABLE
+#ifdef VOCOMP_BUILD_VIDEO_COMPRESS
 	NV_ENC_CONFIG encode_cfg = { NV_ENC_CONFIG_VER };
 	encode_cfg.profileGUID = NV_ENC_H264_PROFILE_BASELINE_GUID;
 
@@ -72,14 +72,18 @@ void Encoder::init( EncodeMethod method, EncodePreset preset )
 #endif
 }
 
-Encoder::~Encoder()
+void Encoder::destroy()
 {
-#ifdef VOCOMP_ENABLE
+#ifdef VOCOMP_BUILD_VIDEO_COMPRESS
 	auto impl = reinterpret_cast<NvEncoder *>( get_nv_impl() );
 	if ( init_done ) {
 		impl->DestroyEncoder();
 	}
 #endif
+}
+
+Encoder::~Encoder()
+{
 }
 
 void *Encoder::get_nv_impl()
@@ -89,7 +93,7 @@ void *Encoder::get_nv_impl()
 
 void Encoder::get_pixel_format( void *dst, PixelFormat format )
 {
-#ifdef VOCOMP_ENABLE
+#ifdef VOCOMP_BUILD_VIDEO_COMPRESS
 	auto &pixel_format = *reinterpret_cast<decltype( NV_ENC_BUFFER_FORMAT_IYUV ) *>( dst );
 	pixel_format = [&] {
 		switch ( format ) {

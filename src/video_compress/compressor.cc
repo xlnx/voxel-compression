@@ -50,6 +50,11 @@ VM_EXPORT
 	{
 		this->_->init( _.encode_method, _.encode_preset );
 	}
+
+	Compressor::~Compressor()
+	{
+		this->_->destroy();
+	}
 }
 
 VM_END_MODULE()

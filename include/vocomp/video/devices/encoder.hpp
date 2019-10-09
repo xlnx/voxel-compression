@@ -48,6 +48,7 @@ struct Encoder : vm::Dynamic, vm::NoCopy
 	~Encoder();
 	void init( EncodeMethod method, EncodePreset preset );
 	virtual void encode( Reader &reader, Writer &writer ) = 0;
+	void destroy();
 
 protected:
 	static void get_pixel_format( void *dst, PixelFormat format );

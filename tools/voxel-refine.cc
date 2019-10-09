@@ -57,7 +57,7 @@ int main( int argc, char **argv )
 						  .set_encode_preset( vol::video::EncodePreset::Default )
 						  .set_width( width )
 						  .set_height( height )
-						  .set_pixel_format( vol::video::PixelFormat::IYUV );
+						  .set_pixel_format( vol::video::PixelFormat::NV12 );
 			if ( comp == "h264" ) {
 				opts.set_encode_method( vol::video::EncodeMethod::H264 );
 			} else {

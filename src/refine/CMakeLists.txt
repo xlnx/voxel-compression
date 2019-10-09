@@ -1,5 +1,6 @@
 set(CMAKE_CXX_STANDARD 17)
 
+set(VMCORE_SHARED_LIBRARY OFF)
 vm_external_module(
   GIT_REPOSITORY https://github.com/cad420/VMCore
   GIT_TAG        master

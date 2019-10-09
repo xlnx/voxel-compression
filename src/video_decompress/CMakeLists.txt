@@ -8,23 +8,28 @@ file(GLOB_RECURSE VIDEO_DECOMPRESS_SRC
   **/*.cu
 )
 
+vm_external_module(
+  GIT_REPOSITORY https://github.com/cad420/cuda-fx
+  GIT_TAG        master
+)
+
 cuda_add_library(video_decompress ${VIDEO_DECOMPRESS_SRC})
 if(MSVC)
   if(CMAKE_CL_64)
-    target_link_libraries(video_compress
+    target_link_libraries(video_decompress
       ${PROJECT_SOURCE_DIR}/lib/x64/nvcuvid.lib
     )
   else()
-    target_link_libraries(video_compress
+    target_link_libraries(video_decompress
       ${PROJECT_SOURCE_DIR}/lib/Win32/nvcuvid.lib
     )
   endif()
 else()
-  target_link_libraries(video_compress
+  target_link_libraries(video_decompress
     ${PROJECT_SOURCE_DIR}/lib/linux/stubs/x86_64/libnvcuvid.so
   )
 endif()
-vm_target_dependency(video_decompress VMUtils PUBLIC)
+vm_target_dependency(video_decompress cudafx PUBLIC)
 
 find_path(FFMPEG_INCLUDE_DIR
   NAMES ffmpeg/libavcodec/avcodec.h
