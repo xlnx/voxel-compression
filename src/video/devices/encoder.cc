@@ -1,6 +1,8 @@
 #include <vocomp/video/devices/encoder.hpp>
 
+#ifdef VOCOMP_ENABLE
 #include <nvcodec/NvEncoder.h>
+#endif
 
 namespace vol
 {
@@ -8,6 +10,7 @@ VM_BEGIN_MODULE( video )
 
 void Encoder::init( EncodeMethod method, EncodePreset preset )
 {
+#ifdef VOCOMP_ENABLE
 	NV_ENC_CONFIG encode_cfg = { NV_ENC_CONFIG_VER };
 	encode_cfg.profileGUID = NV_ENC_H264_PROFILE_BASELINE_GUID;
 
@@ -64,14 +67,19 @@ void Encoder::init( EncodeMethod method, EncodePreset preset )
 	impl->CreateDefaultEncoderParams( &params, *encode_guid, *preset_guid );
 	impl->CreateEncoder( &params );
 	init_done = true;
+#else
+	throw std::runtime_error( "vocomp is built without compression support" );
+#endif
 }
 
 Encoder::~Encoder()
 {
+#ifdef VOCOMP_ENABLE
 	auto impl = reinterpret_cast<NvEncoder *>( get_nv_impl() );
 	if ( init_done ) {
 		impl->DestroyEncoder();
 	}
+#endif
 }
 
 void *Encoder::get_nv_impl()
@@ -81,6 +89,7 @@ void *Encoder::get_nv_impl()
 
 void Encoder::get_pixel_format( void *dst, PixelFormat format )
 {
+#ifdef VOCOMP_ENABLE
 	auto &pixel_format = *reinterpret_cast<decltype( NV_ENC_BUFFER_FORMAT_IYUV ) *>( dst );
 	pixel_format = [&] {
 		switch ( format ) {
@@ -98,6 +107,7 @@ void Encoder::get_pixel_format( void *dst, PixelFormat format )
 		case PixelFormat::ABGR10: return NV_ENC_BUFFER_FORMAT_ABGR10;
 		}
 	}();
+#endif
 }
 
 VM_END_MODULE()

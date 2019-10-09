@@ -15,14 +15,14 @@ VM_EXPORT
 {
 	enum class CompressDevice
 	{
-		CUDA,	 /* cuda sdk required */
+		Cuda,	/* cuda sdk required */
 		Graphics /* D3D9 for windows and GL for linux */
 	};
 
 	struct CompressOptions
 	{
 		CompressOptions();
-		
+
 		VM_DEFINE_ATTRIBUTE( CompressDevice, device );
 		VM_DEFINE_ATTRIBUTE( EncodeMethod, encode_method ) = EncodeMethod::H264;
 		VM_DEFINE_ATTRIBUTE( EncodePreset, encode_preset ) = EncodePreset::Default;

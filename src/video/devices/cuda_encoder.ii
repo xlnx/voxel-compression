@@ -9,12 +9,12 @@ VM_BEGIN_MODULE( video )
 struct CudaEncoderImpl
 {
 	CudaEncoderImpl( uint32_t width, uint32_t height, NV_ENC_BUFFER_FORMAT format ) :
-	  _( new NvEncoderCuda( ctx, width, height, format ) )
+	  _( ctx, width, height, format )
 	{
 	}
 
 	cufx::drv::Context ctx = 0;
-	vm::Box<NvEncoderCuda> _;
+	NvEncoderCuda _;
 };
 
 CudaEncoder::CudaEncoder( uint32_t width, uint32_t height, PixelFormat format ) :
@@ -32,9 +32,9 @@ CudaEncoder::~CudaEncoder()
 
 void CudaEncoder::encode( Reader &reader, Writer &writer )
 {
-	auto _ = _->_.get();
+	auto &_ = this->_->_;
 
-	int nFrameSize = _->GetFrameSize();
+	int nFrameSize = _.GetFrameSize();
 	std::unique_ptr<uint8_t[]> pHostFrame( new uint8_t[ nFrameSize ] );
 	int nFrame = 0;
 
@@ -44,18 +44,18 @@ void CudaEncoder::encode( Reader &reader, Writer &writer )
 		// Load the next frame from disk
 		auto nRead = reader.read( reinterpret_cast<char *>( pHostFrame.get() ), nFrameSize );
 		if ( nRead == nFrameSize ) {
-			const NvEncInputFrame *encoderInputFrame = _->GetNextInputFrame();
-			NvEncoderCuda::CopyToDeviceFrame( ctx, pHostFrame.get(), 0, (CUdeviceptr)encoderInputFrame->inputPtr,
+			const NvEncInputFrame *encoderInputFrame = _.GetNextInputFrame();
+			NvEncoderCuda::CopyToDeviceFrame( this->_->ctx, pHostFrame.get(), 0, (CUdeviceptr)encoderInputFrame->inputPtr,
 											  (int)encoderInputFrame->pitch,
-											  _->GetEncodeWidth(),
-											  _->GetEncodeHeight(),
+											  _.GetEncodeWidth(),
+											  _.GetEncodeHeight(),
 											  CU_MEMORYTYPE_HOST,
 											  encoderInputFrame->bufferFormat,
 											  encoderInputFrame->chromaOffsets,
 											  encoderInputFrame->numChromaPlanes );
-			_->EncodeFrame( vPacket );
+			_.EncodeFrame( vPacket );
 		} else {
-			_->EndEncode( vPacket );
+			_.EndEncode( vPacket );
 		}
 
 		nFrame += (int)vPacket.size();
@@ -72,7 +72,7 @@ void CudaEncoder::encode( Reader &reader, Writer &writer )
 
 void *CudaEncoder::get_nv_impl()
 {
-	return _->_.get();
+	return &_->_;
 }
 
 VM_END_MODULE()

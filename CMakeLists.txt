@@ -12,11 +12,32 @@ vm_external_module(
 
 find_package(CUDA)
 
+option(VOCOMP_ENABLE "enable compression" ON)
 option(VOCOMP_ENABLE_CUDA "enable cuda compression" ON)
 option(VOCOMP_ENABLE_GL "enable gl compression" ON)
 option(VOCOMP_ENABLE_D3D9 "enable d3d9 compression" ON)
 
-if(CUDA_FOUND AND VOCOMP_ENABLE_CUDA)
+if(VOCOMP_ENABLE)
+  add_definitions(-DVOCOMP_ENABLE)
+endif()
+
+if(VOCOMP_ENABLE_CUDA AND VOCOMP_ENABLE AND CUDA_FOUND)
+  set(VOCOMP_ENABLE_CUDA ON)
+else()
+  set(VOCOMP_ENABLE_CUDA OFF)
+endif()
+if(VOCOMP_ENABLE_GL AND VOCOMP_ENABLE AND UNIX AND NOT APPLE)
+  set(VOCOMP_ENABLE_GL ON)
+else()
+  set(VOCOMP_ENABLE_GL OFF)
+endif()
+if(VOCOMP_ENABLE_D3D9 AND VOCOMP_ENABLE AND WIN32)
+  set(VOCOMP_ENABLE_D3D9 ON)
+else()
+  set(VOCOMP_ENABLE_D3D9 OFF)
+endif()
+
+if(VOCOMP_ENABLE_CUDA)
   add_definitions(-DVOCOMP_ENABLE_CUDA)
 endif()
 if(VOCOMP_ENABLE_GL)
