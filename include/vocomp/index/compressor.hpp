@@ -3,11 +3,11 @@
 #include <map>
 
 #include "../unbounded_io.hpp"
-#include "internal/util.hpp"
+#include "index.hpp"
 
 namespace vol
 {
-VM_BEGIN_MODULE( voxel )
+VM_BEGIN_MODULE( index )
 
 using namespace std;
 

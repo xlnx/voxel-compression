@@ -5,13 +5,13 @@ vm_external_module(
   GIT_TAG        master
 )
 
-add_library(vorefine refiner.cc)
+add_library(voxel_refine refiner.cc)
 if (UNIX)
-  target_link_libraries(vorefine pthread dl)
+  target_link_libraries(voxel_refine pthread dl)
 endif()
-target_include_directories(vorefine PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+target_include_directories(voxel_refine PUBLIC
+  ${PROJECT_SOURCE_DIR}/include
 )
-vm_target_dependency(vorefine vocomp PUBLIC)
-vm_target_dependency(vorefine vmcore PUBLIC)
-target_link_libraries(vorefine vmcore)
+vm_target_dependency(voxel_refine VMUtils PUBLIC)
+vm_target_dependency(voxel_refine vmcore PUBLIC)
+target_link_libraries(voxel_refine vmcore)

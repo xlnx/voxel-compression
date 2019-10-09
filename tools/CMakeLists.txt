@@ -2,6 +2,8 @@
 
 if(VOCOMP_BUILD_REFINER)
   add_executable(voxel-refine voxel-refine.cc)
-  # add_executable(vodecomp vodecomp.cc)
-  vm_target_dependency(voxel-refine vorefine PRIVATE)
+  if(VOCOMP_BUILD_VIDEO_COMPRESS)
+	vm_target_dependency(voxel-refine video_compress PRIVATE)
+  endif()
+  vm_target_dependency(voxel-refine voxel_refine PRIVATE)
 endif()

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vocomp/voxel/internal/util.hpp>
+#include <vocomp/index/index.hpp>
 #include <VMUtils/nonnull.hpp>
 #include "internal/header.hpp"
 
@@ -16,7 +16,7 @@ VM_EXPORT
 	{
 		Extractor( Reader &reader, Pipe &pipe );
 		~Extractor();
-		bool extract( voxel::Idx idx, Writer &writer );
+		bool extract( index::Idx idx, Writer &writer );
 
 		auto raw() const { return _raw; }
 		auto dim() const { return _dim; }
@@ -27,9 +27,9 @@ VM_EXPORT
 		auto padding() const { return _padding; }
 
 	private:
-		voxel::Idx _raw;
-		voxel::Idx _dim;
-		voxel::Idx _adjusted;
+		index::Idx _raw;
+		index::Idx _dim;
+		index::Idx _adjusted;
 		size_t _log_block_size;
 		size_t _block_size;
 		size_t _block_inner;

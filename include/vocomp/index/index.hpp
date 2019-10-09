@@ -3,11 +3,11 @@
 #include <VMUtils/fmt.hpp>
 #include <VMUtils/concepts.hpp>
 #include <VMUtils/attributes.hpp>
-#include "../../io.hpp"
+#include "../io.hpp"
 
 namespace vol
 {
-VM_BEGIN_MODULE( voxel )
+VM_BEGIN_MODULE( index )
 
 using namespace std;
 
