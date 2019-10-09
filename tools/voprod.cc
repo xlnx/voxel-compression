@@ -30,22 +30,22 @@ int main( int argc, char **argv )
 	ofstream os( out, std::ios::binary );
 	UnboundedStreamWriter writer( os );
 
-	auto dim = voxel::Idx{}
+	auto dim = index::Idx{}
 				 .set_x( opts[ "X" ].as<size_t>() )
 				 .set_y( opts[ "Y" ].as<size_t>() )
 				 .set_z( opts[ "Z" ].as<size_t>() );
-	auto block = voxel::Idx{}
+	auto block = index::Idx{}
 				   .set_x( opts[ "x" ].as<size_t>() )
 				   .set_y( opts[ "y" ].as<size_t>() )
 				   .set_z( opts[ "z" ].as<size_t>() );
 
 	{
 		video::Compressor video;
-		voxel::Compressor<> comp( dim, writer, video );
+		index::Compressor<> comp( dim, writer, video );
 
 		auto buf = std::unique_ptr<char[]>( new char[ block.total() ] );
 
-		voxel::Idx idx;
+		index::Idx idx;
 		for ( idx.z = 0; idx.z != dim.z; ++idx.z ) {
 			for ( idx.y = 0; idx.y != dim.y; ++idx.y ) {
 				for ( idx.x = 0; idx.x != dim.x; ++idx.x ) {

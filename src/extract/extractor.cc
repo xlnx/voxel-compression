@@ -1,5 +1,5 @@
 #include <vocomp/refine/extractor.hpp>
-#include <vocomp/voxel/decompressor.hpp>
+#include <vocomp/index/decompressor.hpp>
 
 namespace vol
 {
@@ -14,7 +14,7 @@ struct ExtractorImpl final : vm::NoCopy, vm::NoMove
 	  decomp( content, pipe )
 	{
 	}
-	bool extract( voxel::Idx idx, Writer &writer )
+	bool extract( index::Idx idx, Writer &writer )
 	{
 		decomp.get( idx, writer );
 		return true;
@@ -22,7 +22,7 @@ struct ExtractorImpl final : vm::NoCopy, vm::NoMove
 
 private:
 	PartReader content;
-	voxel::Decompressor<> decomp;
+	index::Decompressor<> decomp;
 };
 
 VM_EXPORT
@@ -52,7 +52,7 @@ VM_EXPORT
 	Extractor::~Extractor()
 	{
 	}
-	bool Extractor::extract( voxel::Idx idx, Writer & writer )
+	bool Extractor::extract( index::Idx idx, Writer & writer )
 	{
 		return _->extract( idx, writer );
 	}

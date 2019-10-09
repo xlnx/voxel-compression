@@ -5,7 +5,7 @@
 #include <VMUtils/timer.hpp>
 #include <VMUtils/threadpool.hpp>
 #include <VMFoundation/rawreader.h>
-#include <vocomp/voxel/compressor.hpp>
+#include <vocomp/index/compressor.hpp>
 
 namespace vol
 {
@@ -18,26 +18,26 @@ using Voxel = char;
 struct RefinerImpl final : vm::NoCopy, vm::NoMove
 {
 private:
-	voxel::Idx raw;
+	index::Idx raw;
 	size_t log_block_size, block_size, block_inner, padding;
-	voxel::Idx dim;
-	voxel::Idx adjusted;
+	index::Idx dim;
+	index::Idx adjusted;
 
 	RawReaderIO input;
 	ofstream output;
 
 public:
 	RefinerImpl( RefinerOptions const &opts ) :
-	  raw{ voxel::Idx{}.set_x( opts.x ).set_y( opts.y ).set_z( opts.z ) },
+	  raw{ index::Idx{}.set_x( opts.x ).set_y( opts.y ).set_z( opts.z ) },
 	  log_block_size( opts.log_block_size ),
 	  block_size( 1 << opts.log_block_size ),
 	  block_inner( block_size - 2 * opts.padding ),
 	  padding( opts.padding ),
-	  dim( voxel::Idx{}
+	  dim( index::Idx{}
 			 .set_x( RoundUpDivide( raw.x, block_inner ) )
 			 .set_y( RoundUpDivide( raw.y, block_inner ) )
 			 .set_z( RoundUpDivide( raw.z, block_inner ) ) ),
-	  adjusted( voxel::Idx{}
+	  adjusted( index::Idx{}
 				  .set_x( dim.x * block_size )
 				  .set_y( dim.y * block_size )
 				  .set_z( dim.z * block_size ) ),
@@ -86,16 +86,16 @@ public:
 	bool convert( ConvertOptions const &opts )
 	{
 		auto pipe = opts.pipe;
-		if (not pipe) {
+		if ( not pipe ) {
 			pipe = std::make_shared<vol::Copy>();
 		}
 
 		vol::UnboundedStreamWriter writer( output, sizeof( Header ) );
-		voxel::Compressor<> comp( voxel::Idx{}
-								  .set_x( block_size )
-								  .set_y( block_size )
-								  .set_z( block_size ),
-								writer, *pipe );
+		index::Compressor<> comp( index::Idx{}
+									.set_x( block_size )
+									.set_y( block_size )
+									.set_z( block_size ),
+								  writer, *pipe );
 
 		struct Buffer
 		{
@@ -295,16 +295,16 @@ public:
 				}
 
 				// compute finished
-				read_buffer.ready = false;  // dirty, prepare for next read
+				read_buffer.ready = false;	// dirty, prepare for next read
 				write_buffer.stride = std::make_pair(
 				  slice * dim.x * dim.y +
 					it * ncols * nrows_per_stride +
 					rep * ncols_per_stride,
 				  stride_size.Prod() );
-				write_buffer.ready = true;  // ready to write
+				write_buffer.ready = true;	// ready to write
 			}
 
-			read_buffer.cond_notify_read_compute.notify_one();  // notify to read next section
+			read_buffer.cond_notify_read_compute.notify_one();	// notify to read next section
 			write_buffer.cond_notify_write.notify_one();		// notify to the write thread to write into the disk
 		};
 
@@ -369,7 +369,7 @@ public:
 							char fill;
 						};
 
-						auto idx = voxel::Idx{}
+						auto idx = index::Idx{}
 									 .set_x( j % dim.x )
 									 .set_y( j / dim.x % dim.y )
 									 .set_z( j / ( dim.x * dim.y ) % dim.z );
@@ -392,9 +392,9 @@ public:
 				// const int ss = int( seconds ) % 60;
 				// printf( "%20lld blocks finished, made up %.2f%%. Estimated remaining time: %02d:%02d:%02d\n",
 				// 		written_blocks, written_blocks  * 100.0 / dim.total(), hh, mm, ss );
-				write_buffer.ready = false;  // prepare for next compute
+				write_buffer.ready = false;	 // prepare for next compute
 			}
-			write_buffer.cond_notify_read_compute.notify_one();  // notify to the read thread for the next read and computation
+			write_buffer.cond_notify_read_compute.notify_one();	 // notify to the read thread for the next read and computation
 		};
 
 		{
