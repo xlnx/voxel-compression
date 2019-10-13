@@ -1,4 +1,4 @@
-#include <vocomp/video/devices/d3d9_encoder.hpp>
+#include "d3d9_encoder.hpp"
 #include <d3d9.h>
 #include <dxva2api.h>
 #include <wrl.h>
