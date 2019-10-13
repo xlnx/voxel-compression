@@ -3,7 +3,7 @@
 #include <VMUtils/nonnull.hpp>
 #include <VMUtils/concepts.hpp>
 #include <VMUtils/attributes.hpp>
-#include "devices/encoder.hpp"
+#include "../io.hpp"
 
 namespace vol
 {
@@ -13,6 +13,37 @@ struct CompressorImpl;
 
 VM_EXPORT
 {
+	enum class EncodeMethod : char
+	{
+		H264,
+		HEVC
+	};
+	enum class EncodePreset : char
+	{
+		Default,
+		HP,
+		HQ,
+		BD,
+		LowLatencyDefault,
+		LowLatencyHQ,
+		LowLatencyHP,
+		LosslessDefault,
+		LosslessHP
+	};
+	enum class PixelFormat : char
+	{
+		IYUV,
+		YV12,
+		NV12,
+		YUV42010Bit,
+		YUV444,
+		YUV44410Bit,
+		ARGB,
+		ARGB10,
+		AYUV,
+		ABGR,
+		ABGR10
+	};
 	enum class CompressDevice
 	{
 		Cuda,	/* cuda sdk required */
@@ -36,13 +67,10 @@ VM_EXPORT
 		Compressor( CompressOptions const &_ = CompressOptions{} );
 		~Compressor();
 
-		void transfer( Reader &reader, Writer &writer ) override
-		{
-			_->encode( reader, writer );
-		}
+		void transfer( Reader &reader, Writer &writer ) override;
 
 	private:
-		vm::Box<Encoder> _;
+		vm::Box<CompressorImpl> _;
 	};
 }
 

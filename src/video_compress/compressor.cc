@@ -1,18 +1,67 @@
 #include <vocomp/video/compressor.hpp>
 
 #ifdef VOCOMP_ENABLE_CUDA
-#include <vocomp/video/devices/cuda_encoder.hpp>
+#include "devices/cuda_encoder.hpp"
 #endif
 #if defined( WIN32 ) && defined( VOCOMP_ENABLE_D3D9 )
-#include <vocomp/video/devices/d3d9_encoder.hpp>
+#include "devices/d3d9_encoder.hpp"
 #endif
 #if defined( __linux__ ) && defined( VOCOMP_ENABLE_GL )
-#include <vocomp/video/devices/gl_encoder.hpp>
+#include "devices/gl_encoder.hpp"
 #endif
 
 namespace vol
 {
 VM_BEGIN_MODULE( video )
+
+struct CompressorImpl
+{
+	CompressorImpl( CompressOptions const &opts ) :
+	  opts( opts ),
+	  _( [&]() -> Encoder * {
+		  switch ( opts.device ) {
+		  case CompressDevice::Cuda:
+#ifdef VOCOMP_ENABLE_CUDA
+			  return new CudaEncoder( opts.width, opts.height, opts.pixel_format );
+#else
+			  throw std::runtime_error( "current compressor is compiled without cuda support." );
+#endif
+		  default:
+		  case CompressDevice::Graphics:
+#if defined( WIN32 ) && defined( VOCOMP_ENABLE_D3D9 )
+			  return new D3D9Encoder( opts.width, opts.height, opts.pixel_format );
+#elif defined( __linux__ ) && defined( VOCOMP_ENABLE_GL )
+			  return new GLEncoder( opts.width, opts.height, opts.pixel_format );
+#else
+			  throw std::runtime_error( "no supported compression device" );
+#endif
+		  }
+	  }() )
+	{
+		_->_->CreateDefaultEncoderParams( &_->params,
+										  *into_nv_encode( opts.encode_method ),
+										  *into_nv_preset( opts.encode_preset ) );
+		_->_->CreateEncoder( &_->params );
+		_->_->Allocate();
+	}
+
+	void transfer( Reader &reader, Writer &writer )
+	{
+		_->_->CreateEncoder( &_->params );
+		{
+			_->encode( reader, writer );
+		}
+	}
+
+	~CompressorImpl()
+	{
+		_->_->Deallocate();
+		_->_->DestroyEncoder();
+	}
+
+	CompressOptions opts;
+	vm::Box<Encoder> _;
+};
 
 VM_EXPORT
 {
@@ -28,32 +77,17 @@ VM_EXPORT
 	}
 
 	Compressor::Compressor( CompressOptions const &_ ) :
-	  _( [&]() -> Encoder * {
-		  switch ( _.device ) {
-		  case CompressDevice::Cuda:
-#ifdef VOCOMP_ENABLE_CUDA
-			  return new CudaEncoder( _.width, _.height, _.pixel_format );
-#else
-			  throw std::runtime_error( "current compressor is compiled without cuda support." );
-#endif
-		  default:
-		  case CompressDevice::Graphics:
-#if defined( WIN32 ) && defined( VOCOMP_ENABLE_D3D9 )
-			  return new D3D9Encoder( _.width, _.height, _.pixel_format );
-#elif defined( __linux__ ) && defined( VOCOMP_ENABLE_GL )
-			  return new GLEncoder( _.width, _.height, _.pixel_format );
-#else
-			  throw std::runtime_error( "no supported compression device" );
-#endif
-		  }
-	  }() )
+	  _( new CompressorImpl( _ ) )
 	{
-		this->_->init( _.encode_method, _.encode_preset );
 	}
 
 	Compressor::~Compressor()
 	{
-		this->_->destroy();
+	}
+
+	void Compressor::transfer( Reader & reader, Writer & writer )
+	{
+		_->transfer( reader, writer );
 	}
 }
 

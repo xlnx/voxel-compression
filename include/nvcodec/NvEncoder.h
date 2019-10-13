@@ -216,6 +216,9 @@ public:
     */
     virtual ~NvEncoder();
 
+	void Allocate();
+	void Deallocate();
+	
 public:
     /**
     *  @brief This a static function to get chroma offsets for YUV planar formats.
