@@ -26,6 +26,8 @@ private:
 	RawReaderIO input;
 	ofstream output;
 
+	vm::ThreadPool pool = thread::hardware_concurrency();
+
 public:
 	RefinerImpl( RefinerOptions const &opts ) :
 	  raw{ index::Idx{}.set_x( opts.x ).set_y( opts.y ).set_z( opts.z ) },
@@ -152,7 +154,7 @@ public:
 		Buffer read_buffer( nvoxels_per_block * nblocks_per_stride );
 		Buffer write_buffer( nvoxels_per_block * nblocks_per_stride );
 
-		std::size_t read_blocks = 0;
+		std::atomic<size_t> read_blocks = 0;
 		std::size_t written_blocks = 0;
 
 		auto readTask = [&, this]( int slice, int it, int rep ) {
@@ -268,43 +270,45 @@ public:
 					write_buffer.buffer.swap( read_buffer.buffer );
 				}
 
-#pragma omp parallel for
 				for ( int yb = 0; yb < stride_size.y; yb++ ) {
 					for ( int xb = 0; xb < stride_size.x; xb++ ) {
-						const int blockIndex = xb + yb * stride_size.x;
-						const auto dst = write_buffer.buffer.get() +
-										 blockIndex * nvoxels_per_block;
-						const auto src = read_buffer.buffer.get() +
-										 xb * block_inner + yb * block_inner * raw_region_size.x;
+						pool.AppendTask( [&, xb, yb] {
+							const int blockIndex = xb + yb * stride_size.x;
+							const auto dst = write_buffer.buffer.get() +
+											 blockIndex * nvoxels_per_block;
+							const auto src = read_buffer.buffer.get() +
+											 xb * block_inner + yb * block_inner * raw_region_size.x;
 
-						for ( std::size_t dep = 0; dep < block_size; ++dep ) {
-							auto slice_dst = dst + dep * block_size * block_size;
-							auto slice_src = src + dep * raw_region_size.x * raw_region_size.y;
-							for ( std::size_t row = 0; row < block_size; ++row ) {
-								memcpy(
-								  slice_dst + row * block_size,
-								  slice_src + row * raw_region_size.x,
-								  block_size * sizeof( Voxel ) );
+							for ( std::size_t dep = 0; dep < block_size; ++dep ) {
+								auto slice_dst = dst + dep * block_size * block_size;
+								auto slice_src = src + dep * raw_region_size.x * raw_region_size.y;
+								for ( std::size_t row = 0; row < block_size; ++row ) {
+									memcpy(
+									  slice_dst + row * block_size,
+									  slice_src + row * raw_region_size.x,
+									  block_size * sizeof( Voxel ) );
+								}
 							}
-						}
-						// z-offset
+							// z-offset
 
-						++read_blocks;
-						printf( "%10lld of %10lld complete.\r", read_blocks, dim.total() );
+							++read_blocks;
+						} );
 					}
 				}
+				pool.Wait();
+				vm::println( "read {} blocks", read_blocks );
 
 				// compute finished
-				read_buffer.ready = false;	// dirty, prepare for next read
+				read_buffer.ready = false;  // dirty, prepare for next read
 				write_buffer.stride = std::make_pair(
 				  slice * dim.x * dim.y +
 					it * ncols * nrows_per_stride +
 					rep * ncols_per_stride,
 				  stride_size.Prod() );
-				write_buffer.ready = true;	// ready to write
+				write_buffer.ready = true;  // ready to write
 			}
 
-			read_buffer.cond_notify_read_compute.notify_one();	// notify to read next section
+			read_buffer.cond_notify_read_compute.notify_one();  // notify to read next section
 			write_buffer.cond_notify_write.notify_one();		// notify to the write thread to write into the disk
 		};
 
@@ -392,9 +396,9 @@ public:
 				// const int ss = int( seconds ) % 60;
 				// printf( "%20lld blocks finished, made up %.2f%%. Estimated remaining time: %02d:%02d:%02d\n",
 				// 		written_blocks, written_blocks  * 100.0 / dim.total(), hh, mm, ss );
-				write_buffer.ready = false;	 // prepare for next compute
+				write_buffer.ready = false;  // prepare for next compute
 			}
-			write_buffer.cond_notify_read_compute.notify_one();	 // notify to the read thread for the next read and computation
+			write_buffer.cond_notify_read_compute.notify_one();  // notify to the read thread for the next read and computation
 		};
 
 		{
