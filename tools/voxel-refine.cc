@@ -30,7 +30,7 @@ int main( int argc, char **argv )
 	auto x = a.get<int>( "x" );
 	auto y = a.get<int>( "y" );
 	auto z = a.get<int>( "z" );
-	auto repeat = a.get<int>( "padding" );
+	auto padding = a.get<int>( "padding" );
 	auto log = a.get<int>( "side" );
 	auto comp = a.get<string>( "compression" );
 	auto dev = a.get<string>( "device" );
@@ -87,6 +87,7 @@ int main( int argc, char **argv )
 						  .set_y( y )
 						  .set_z( z )
 						  .set_log_block_size( log )
+						  .set_padding( padding )
 						  .set_input( input )
 						  .set_output( output );
 			vol::refine::Refiner refiner( opts );

@@ -15,9 +15,8 @@ VM_EXPORT
 	template <typename Voxel = char>
 	struct Decompressor final : vm::NoCopy, vm::NoMove
 	{
-		Decompressor( Reader &reader, Pipe &_ ) :
-		  reader( reader ),
-		  _( _ )
+		Decompressor( Reader &reader ) :
+		  reader( reader )
 		{
 			auto len = reader.size();
 			reader.seek( len - sizeof( CompressMeta ) );
@@ -32,36 +31,19 @@ VM_EXPORT
 			}
 		}
 
-		template <typename W>  // W: Writer
-		void get( Idx const &idx, W &writer )
+		PartReader get( Idx const &idx )
 		{
 			if ( index.find( idx ) == index.end() ) {
-				return;
+				throw std::runtime_error( vm::fmt( "invalid block id: {}", idx ) );
 			}
 			auto &blk = index[ idx ];
-			PartReader part( reader, blk.offset, blk.len );
-			// auto a = writer.tell();
-			_.transfer( part, writer );
-			// auto b = writer.tell();
-			// vm::println( "get {} with len {} from {}", idx, b - a, blk );
-		}
-		void get( Idx const &idx, ostream &os, size_t offset = 0 )
-		{
-			StreamWriter writer( os, offset, block_len );
-			get( idx, writer );
-		}
-		void get( Idx const &idx, Voxel *block )
-		{
-			auto ptr = reinterpret_cast<char *>( block );
-			SliceWriter writer( ptr, 0, block_len );
-			get( idx, reader );
+			return PartReader( reader, blk.offset, blk.len );
 		}
 
 	private:
 		std::map<Idx, BlockIndex> index;
 		Reader &reader;
 		size_t block_len;
-		Pipe &_;
 	};
 }
 

@@ -14,9 +14,9 @@ VM_EXPORT
 {
 	struct Extractor final : vm::NoCopy
 	{
-		Extractor( Reader &reader, Pipe &pipe );
+		Extractor( Reader &reader );
 		~Extractor();
-		bool extract( index::Idx idx, Writer &writer );
+		PartReader extract( index::Idx idx );
 
 		auto raw() const { return _raw; }
 		auto dim() const { return _dim; }

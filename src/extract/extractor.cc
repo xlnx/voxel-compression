@@ -9,15 +9,14 @@ using namespace std;
 
 struct ExtractorImpl final : vm::NoCopy, vm::NoMove
 {
-	ExtractorImpl( Reader &reader, Pipe &pipe ) :
+	ExtractorImpl( Reader &reader ) :
 	  content( reader, sizeof( Header ), reader.size() - sizeof( Header ) ),
-	  decomp( content, pipe )
+	  decomp( content )
 	{
 	}
-	bool extract( index::Idx idx, Writer &writer )
+	PartReader extract( index::Idx idx )
 	{
-		decomp.get( idx, writer );
-		return true;
+		return decomp.get( idx );
 	}
 
 private:
@@ -27,8 +26,8 @@ private:
 
 VM_EXPORT
 {
-	Extractor::Extractor( Reader & reader, Pipe & pipe ) :
-	  _( new ExtractorImpl( reader, pipe ) )
+	Extractor::Extractor( Reader & reader ) :
+	  _( new ExtractorImpl( reader ) )
 	{
 		PartReader header_reader( reader, 0, sizeof( Header ) );
 		auto header = Header::read_from( header_reader );
@@ -52,9 +51,9 @@ VM_EXPORT
 	Extractor::~Extractor()
 	{
 	}
-	bool Extractor::extract( index::Idx idx, Writer & writer )
+	PartReader Extractor::extract( index::Idx idx )
 	{
-		return _->extract( idx, writer );
+		return _->extract( idx );
 	}
 }
 

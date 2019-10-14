@@ -68,7 +68,7 @@ private:
 		vm::eprintln("INFO: Media format: {} ({})",
 					 fmtc->iformat->long_name, fmtc->iformat->name);
 
-        ck(avformat_find_stream_info(fmtc, NULL));
+        // ck(avformat_find_stream_info(fmtc, NULL));
         iVideoStream = av_find_best_stream(fmtc, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
         if (iVideoStream < 0) {
 			vm::eprintln("ERROR: FFmpeg error: {} {} {}",  __FILE__, __LINE__, "Could not find stream in input file");
