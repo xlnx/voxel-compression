@@ -14,7 +14,7 @@ VM_EXPORT
 {
 	struct Decompressor final : Pipe, vm::NoCopy
 	{
-		Decompressor();
+		Decompressor( Reader &hint );
 		~Decompressor();
 
 		void decompress( Reader &reader, Writer &writer );
