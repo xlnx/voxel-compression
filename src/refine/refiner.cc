@@ -1,11 +1,12 @@
 #include <vocomp/refine/refiner.hpp>
 
+#include <thread>
 #include <VMat/geometry.h>
 #include <VMat/numeric.h>
 #include <VMUtils/timer.hpp>
-#include <VMUtils/threadpool.hpp>
 #include <VMFoundation/rawreader.h>
 #include <vocomp/index/compressor.hpp>
+#include <koi.hpp>
 
 namespace vol
 {
@@ -14,6 +15,46 @@ VM_BEGIN_MODULE( refine )
 using namespace ysl;
 
 using Voxel = char;
+
+struct PaddedReader : Reader
+{
+	PaddedReader( Reader &_, size_t len, char fill = 0 ) :
+	  _( _ ),
+	  len( len ),
+	  fill( fill )
+	{
+	}
+	void seek( size_t pos ) override
+	{
+		_.seek( pos );
+	}
+	size_t tell() const override
+	{
+		return _.tell() + p;
+	}
+	size_t size() const override
+	{
+		return len;
+	}
+	size_t read( char *dst, size_t dlen ) override
+	{
+		auto nread = _.read( dst, dlen );
+		auto remain = len - _.size() - p;
+		if ( nread < dlen && remain > 0 ) {
+			auto nfill = std::min( dlen - nread, remain );
+			p += nfill;
+			memset( dst + nread, fill, sizeof( fill ) * nfill );
+			nread += nfill;
+		}
+		return nread;
+	}
+
+private:
+	Reader &_;
+	size_t len;
+	size_t p = 0;
+	char fill;
+};
 
 struct RefinerImpl final : vm::NoCopy, vm::NoMove
 {
@@ -26,7 +67,11 @@ private:
 	RawReaderIO input;
 	ofstream output;
 
-	vm::ThreadPool pool = thread::hardware_concurrency();
+	// vm::ThreadExchange_Pool exchange_pool = thread::hardware_concurrency();
+
+	koi::runtime::Runtime rt;
+	koi::runtime::Runtime exchange_pool;
+	koi::runtime::Runtime write_pool;
 
 public:
 	RefinerImpl( RefinerOptions const &opts ) :
@@ -99,19 +144,8 @@ public:
 									.set_z( block_size ),
 								  writer, *pipe );
 
-		struct Buffer
-		{
-			std::unique_ptr<Voxel[]> buffer;
-			std::pair<int, std::size_t> stride;
-			std::condition_variable cond_notify_read_compute;
-			std::condition_variable cond_notify_write;
-			std::mutex mtx;
-			bool ready = false;
-			Buffer( std::size_t nVoxels )
-			{
-				buffer.reset( new Voxel[ nVoxels * sizeof( Voxel ) ] );
-			}
-		};
+		auto t = vm::Timer();
+		t.start();
 
 		const std::size_t nvoxels_per_block = block_size * block_size * block_size;
 
@@ -151,13 +185,17 @@ public:
 		const std::size_t buffer_size = nvoxels_per_block * nblocks_per_stride;
 		vm::println( "allocing buffers: {} byte(s) x 2 = {} Mb",
 					 buffer_size, buffer_size / 1024 /*Kb*/ / 1024 /*Mb*/ );
-		Buffer read_buffer( nvoxels_per_block * nblocks_per_stride );
-		Buffer write_buffer( nvoxels_per_block * nblocks_per_stride );
+		vector<char> read_buffer( nvoxels_per_block * nblocks_per_stride );
+		vector<char> write_buffer( nvoxels_per_block * nblocks_per_stride );
 
 		std::atomic<size_t> read_blocks = 0;
 		std::size_t written_blocks = 0;
 
-		auto readTask = [&, this]( int slice, int it, int rep ) {
+		auto stride_read_task = [&, this]( int slice, int it, int rep ) {
+			const auto blkid_base = slice * dim.x * dim.y +
+									it * ncols * nrows_per_stride +
+									rep * ncols_per_stride;
+
 			const Vec2i stride_start( rep * ncols_per_stride, it * nrows_per_stride );
 			const Size2 stride_size(
 			  std::min( ncols - stride_start.x, ncols_per_stride ),
@@ -226,179 +264,132 @@ public:
 				dz = padding;
 			}
 
-			const int zoffset = ( slice == 0 ) ? -padding : 0;
+			vm::println( "read stride: {} {}", stride_start, stride_size );
+			vm::println( "read region(raw): {} {}", raw_region_start, raw_region_size );
+			vm::println( "read region: {} {}", region_start, region_size );
 
-			{
-				std::unique_lock<std::mutex> lk( read_buffer.mtx );
-				read_buffer.cond_notify_read_compute.wait(
-				  lk, [&] { return not read_buffer.ready; } );
+			vm::println( "overflow: {#x}", overflow );
+			vm::println( "dxy: {}", Vec2i( dx, dy ) );
 
-				vm::println( "read stride: {} {}", stride_start, stride_size );
-				vm::println( "read region(raw): {} {}", raw_region_start, raw_region_size );
-				vm::println( "read region: {} {}", region_start, region_size );
+			/* always read region into buffer[0..] */
+			input.readRegion(
+			  region_start, region_size,
+			  reinterpret_cast<unsigned char *>( read_buffer.data() ) );
 
-				vm::println( "overflow: {#x}", overflow );
-				vm::println( "dxy: {}", Vec2i( dx, dy ) );
-
-				/* always read region into buffer[0..] */
-				input.readRegion(
-				  region_start, region_size,
-				  reinterpret_cast<unsigned char *>( read_buffer.buffer.get() ) );
-				read_buffer.ready = true;  //flag
-
-				std::unique_lock<std::mutex> lk2( write_buffer.mtx );
-				write_buffer.cond_notify_read_compute.wait(
-				  lk2, [&] { return not write_buffer.ready; } );
-
-				/* transfer overflowed into correct position */
-				if ( overflow ) {
-					memset( write_buffer.buffer.get(), 0,
-							sizeof( Voxel ) * nvoxels_per_block * nblocks_per_stride );
-					auto dst = write_buffer.buffer.get();
-					auto src = read_buffer.buffer.get();
-					for ( std::size_t dep = 0; dep < region_size.z; ++dep ) {
-						auto slice_dst = dst + dep * raw_region_size.x * raw_region_size.y;
-						auto slice_src = src + dep * region_size.x * region_size.y;
-						for ( std::size_t i = 0; i < region_size.y; ++i ) {
-							memcpy(
-							  slice_dst + dz * raw_region_size.x * raw_region_size.y +
-								( i + dy ) * raw_region_size.x + dx, /*x'_i*/
-							  slice_src + i * region_size.x,		 /*x_i*/
-							  region_size.x * sizeof( Voxel ) );
-						}
-					}
-					write_buffer.buffer.swap( read_buffer.buffer );
-				}
-
-				for ( int yb = 0; yb < stride_size.y; yb++ ) {
-					for ( int xb = 0; xb < stride_size.x; xb++ ) {
-						pool.AppendTask( [&, xb, yb] {
-							const int blockIndex = xb + yb * stride_size.x;
-							const auto dst = write_buffer.buffer.get() +
-											 blockIndex * nvoxels_per_block;
-							const auto src = read_buffer.buffer.get() +
-											 xb * block_inner + yb * block_inner * raw_region_size.x;
-
-							for ( std::size_t dep = 0; dep < block_size; ++dep ) {
-								auto slice_dst = dst + dep * block_size * block_size;
-								auto slice_src = src + dep * raw_region_size.x * raw_region_size.y;
-								for ( std::size_t row = 0; row < block_size; ++row ) {
-									memcpy(
-									  slice_dst + row * block_size,
-									  slice_src + row * raw_region_size.x,
-									  block_size * sizeof( Voxel ) );
-								}
-							}
-							// z-offset
-
-							++read_blocks;
-						} );
+			/* transfer overflowed into correct position */
+			if ( overflow ) {
+				memset( write_buffer.data(), 0,
+						sizeof( Voxel ) * nvoxels_per_block * nblocks_per_stride );
+				auto dst = write_buffer.data();
+				auto src = read_buffer.data();
+				for ( std::size_t dep = 0; dep < region_size.z; ++dep ) {
+					auto slice_dst = dst + dep * raw_region_size.x * raw_region_size.y;
+					auto slice_src = src + dep * region_size.x * region_size.y;
+					for ( std::size_t i = 0; i < region_size.y; ++i ) {
+						memcpy(
+						  slice_dst + dz * raw_region_size.x * raw_region_size.y +
+							( i + dy ) * raw_region_size.x + dx, /*x'_i*/
+						  slice_src + i * region_size.x,		 /*x_i*/
+						  region_size.x * sizeof( Voxel ) );
 					}
 				}
-				pool.Wait();
-				vm::println( "read {} blocks", read_blocks );
-
-				// compute finished
-				read_buffer.ready = false;  // dirty, prepare for next read
-				write_buffer.stride = std::make_pair(
-				  slice * dim.x * dim.y +
-					it * ncols * nrows_per_stride +
-					rep * ncols_per_stride,
-				  stride_size.Prod() );
-				write_buffer.ready = true;  // ready to write
+				write_buffer.swap( read_buffer );
 			}
 
-			read_buffer.cond_notify_read_compute.notify_one();  // notify to read next section
-			write_buffer.cond_notify_write.notify_one();		// notify to the write thread to write into the disk
-		};
+			auto blocklify_task = [&]( int xb, int yb ) {
+				const int blkid = xb + yb * stride_size.x;
+				const auto dst = write_buffer.data() +
+								 blkid * nvoxels_per_block;
+				const auto src = read_buffer.data() +
+								 xb * block_inner + yb * block_inner * raw_region_size.x;
 
-		auto writeTask = [&, this] {
-			{
-				std::unique_lock<std::mutex> lk( write_buffer.mtx );
-				write_buffer.cond_notify_write.wait( lk, [&] { return write_buffer.ready; } );
-
-				const auto [ index, nblocks ] = write_buffer.stride;
-
-				const auto one_block = nvoxels_per_block * sizeof( Voxel );
-				const auto offset = one_block * index;
-				const auto nbytes = one_block * nblocks;
-				///TODO:: write to file
-				vm::println( "write {} byte(s) to disk:", nbytes );
-				{
-					vm::Timer::Scoped t( [&]( auto dt ) {
-						vm::println( "Write To Disk Finished. Time: {}", dt.ms() );
-					} );
-					auto buf = reinterpret_cast<char const *>( write_buffer.buffer.get() );
-					for ( int i = 0; i != nblocks; ++i ) {
-						auto j = index + i;
-						SliceReader inner( buf + one_block * i, one_block );
-
-						struct PaddedReader : Reader
-						{
-							PaddedReader( Reader &_, size_t len, char fill = 0 ) :
-							  _( _ ),
-							  len( len ),
-							  fill( fill )
-							{
-							}
-							void seek( size_t pos ) override
-							{
-								_.seek( pos );
-							}
-							size_t tell() const override
-							{
-								return _.tell() + p;
-							}
-							size_t size() const override
-							{
-								return len;
-							}
-							size_t read( char *dst, size_t dlen ) override
-							{
-								auto nread = _.read( dst, dlen );
-								auto remain = len - _.size() - p;
-								if ( nread < dlen && remain > 0 ) {
-									auto nfill = std::min( dlen - nread, remain );
-									p += nfill;
-									memset( dst + nread, fill, sizeof( fill ) * nfill );
-									nread += nfill;
-								}
-								return nread;
-							}
-
-						private:
-							Reader &_;
-							size_t len;
-							size_t p = 0;
-							char fill;
-						};
-
-						auto idx = index::Idx{}
-									 .set_x( j % dim.x )
-									 .set_y( j / dim.x % dim.y )
-									 .set_z( j / ( dim.x * dim.y ) % dim.z );
-
-						if ( opts.frame_len ) {
-							auto nframes = RoundUpDivide( inner.size(), opts.frame_len );
-							PaddedReader reader( inner, opts.frame_len * nframes );
-							comp.put( idx, reader );
-						} else {
-							comp.put( idx, inner );
-						}
+				for ( std::size_t dep = 0; dep < block_size; ++dep ) {
+					auto slice_dst = dst + dep * block_size * block_size;
+					auto slice_src = src + dep * raw_region_size.x * raw_region_size.y;
+					for ( std::size_t row = 0; row < block_size; ++row ) {
+						memcpy(
+						  slice_dst + row * block_size,
+						  slice_src + row * raw_region_size.x,
+						  block_size * sizeof( Voxel ) );
 					}
 				}
-				written_blocks += dim.x * dim.y;
+
+				++read_blocks;
+			};
+			auto write_task = [&]( SliceReader block, size_t blkid ) {
+				vm::println( "write block {}", blkid );
+				const auto one_block = nvoxels_per_block * sizeof( Voxel );
+
+				{
+					auto s = writer.tell();
+					vm::Timer::Scoped t( [&]( auto dt ) {
+						auto t = writer.tell();
+						vm::println( "written {} bytes in {}", t - s, dt.s() );
+					} );
+					auto buf = reinterpret_cast<char const *>( write_buffer.data() );
+					auto idx = index::Idx{}
+								 .set_x( blkid % dim.x )
+								 .set_y( blkid / dim.x % dim.y )
+								 .set_z( blkid / ( dim.x * dim.y ) % dim.z );
+
+					if ( opts.frame_len ) {
+						auto nframes = RoundUpDivide( block.size(), opts.frame_len );
+						PaddedReader reader( block, opts.frame_len * nframes );
+						comp.put( idx, reader );
+					} else {
+						comp.put( idx, block );
+					}
+				}
+				++written_blocks;
 
 				float cur_percent = written_blocks * 1.0 / dim.total();
-				// size_t seconds = t.eval_remaining_time( cur_percent ) / 1000000;
-				// const int hh = seconds / 3600;
-				// const int mm = ( seconds - hh * 3600 ) / 60;
-				// const int ss = int( seconds ) % 60;
-				// printf( "%20lld blocks finished, made up %.2f%%. Estimated remaining time: %02d:%02d:%02d\n",
-				// 		written_blocks, written_blocks  * 100.0 / dim.total(), hh, mm, ss );
-				write_buffer.ready = false;  // prepare for next compute
+				size_t seconds = t.eval_remaining_time( cur_percent ) / 1000000;
+				const int hh = seconds / 3600;
+				const int mm = ( seconds - hh * 3600 ) / 60;
+				const int ss = int( seconds ) % 60;
+				printf( "%20lld blocks finished, made up %.2f%%. Estimated remaining time: %02d:%02d:%02d\n",
+						written_blocks, written_blocks * 100.0 / dim.total(), hh, mm, ss );
+			};
+			auto exchange_sink = koi::future::sink();
+			auto write_sink = koi::future::sink();
+			auto exchange_handle = exchange_sink.handle();
+			auto write_handle = write_sink.handle();
+			for ( int yb = 0; yb < stride_size.y; yb++ ) {
+				for ( int xb = 0; xb < stride_size.x; xb++ ) {
+					exchange_pool.spawn(
+					  koi::future::lazy(
+						[&, xb, yb] {
+							blocklify_task( xb, yb );
+						} )
+						.then(
+						  [&, xb, yb] {
+							  // write one block
+							  const size_t blkid = xb + yb * stride_size.x;
+							  const auto dst = write_buffer.data() +
+											   blkid * nvoxels_per_block;
+							  write_pool.spawn(
+								koi::future::lazy(
+								  [&, dst, blkid] {
+									  write_task(
+										SliceReader( dst, nvoxels_per_block ),
+										blkid + blkid_base );
+								  } )
+								  .gather( write_handle ) );
+						  } )
+						.gather( exchange_handle ) );
+				}
 			}
-			write_buffer.cond_notify_read_compute.notify_one();  // notify to the read thread for the next read and computation
+			exchange_pool.spawn(
+			  std::move( exchange_sink )
+				.then( [&]( bool ok ) {
+					vm::println( "gather: {}", ok );
+				} ) );
+
+			exchange_pool.spawn(
+			  std::move( write_sink ) );
+			exchange_pool.run();
+
+			vm::println( "handled {} blocks", read_blocks );
 		};
 
 		{
@@ -406,17 +397,24 @@ public:
 				vm::println( "total convert time: {}", dt.s() );
 			} );
 
-			vm::ThreadPool read_thread( 1 );
-			vm::ThreadPool write_thread( 1 );
-
+			atomic<bool> should_stop( false );
+			auto w = thread( [&] {
+				while ( !should_stop.load() ) { write_pool.run(); }
+			} );
 			for ( int slice = 0; slice < nslices; slice++ ) {
 				for ( int it = 0; it < nrow_iters; ++it ) {
 					for ( int rep = 0; rep < stride_interval; ++rep ) {
-						read_thread.AppendTask( readTask, slice, it, rep );
-						write_thread.AppendTask( writeTask );
+						rt.spawn(
+						  koi::future::lazy(
+							[&, slice, it, rep] {
+								stride_read_task( slice, it, rep );
+							} ) );
 					}
 				}
 			}
+			rt.run();
+			should_stop.store( true );
+			w.join();
 		}
 
 		return true;

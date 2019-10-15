@@ -5,6 +5,11 @@ vm_external_module(
   GIT_REPOSITORY https://github.com/cad420/VMCore
   GIT_TAG        master
 )
+vm_external_module(
+  GIT_REPOSITORY https://github.com/xlnx/koi
+  GIT_TAG        external/cad420
+)
+add_definitions(-DKOI_NO_LIBUV_REACTOR)
 
 add_library(voxel_refine refiner.cc)
 if (UNIX)
@@ -15,4 +20,5 @@ target_include_directories(voxel_refine PUBLIC
 )
 vm_target_dependency(voxel_refine VMUtils PUBLIC)
 vm_target_dependency(voxel_refine vmcore PUBLIC)
+vm_target_dependency(voxel_refine koi PUBLIC)
 target_link_libraries(voxel_refine vmcore)
