@@ -317,7 +317,7 @@ public:
 
 				++read_blocks;
 			};
-			const int REV_INTERVAL = 36;
+			const int REV_INTERVAL = std::max(nblocks_per_stride / 20, 1);
 			atomic<int> interval( 0 );
 			auto write_task = [&]( SliceReader block, size_t blkid ) {
 				//vm::println( "write block {}", blkid );
