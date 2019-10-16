@@ -40,6 +40,8 @@ VM_EXPORT
 			return PartReader( reader, blk.offset, blk.len );
 		}
 
+		auto &get_index() { return index; }
+
 	private:
 		std::map<Idx, BlockIndex> index;
 		Reader &reader;
