@@ -6,8 +6,8 @@ vm_external_module(
   GIT_TAG        master
 )
 vm_external_module(
-  GIT_REPOSITORY https://github.com/xlnx/koi
-  GIT_TAG        external/cad420
+  GIT_REPOSITORY https://github.com/cad420/koi
+  GIT_TAG        master
 )
 add_definitions(-DKOI_NO_LIBUV_REACTOR)
 
