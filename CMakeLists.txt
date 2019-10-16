@@ -11,6 +11,7 @@ vm_external_module(
 )
 
 find_package(CUDA)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
 
 option(VOCOMP_BUILD_VIDEO_COMPRESS "build wrapped nvidia video compression library" ON)
 option(VOCOMP_BUILD_VIDEO_DECOMPRESS "build wrapped nvidia video decompression library" ON)

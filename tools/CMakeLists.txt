@@ -7,3 +7,8 @@ if(VOCOMP_BUILD_REFINER)
   endif()
   vm_target_dependency(voxel-refine voxel_refine PRIVATE)
 endif()
+
+if(VOCOMP_BUILD_EXTRACTOR)
+  add_executable(voxel-info voxel-info.cc)
+  vm_target_dependency(voxel-info voxel_extract PRIVATE)
+endif()

@@ -14,9 +14,9 @@ VM_EXPORT
 {
 	struct Extractor final : vm::NoCopy
 	{
-		Extractor( Reader &reader, Pipe &pipe );
+		Extractor( Reader &reader );
 		~Extractor();
-		bool extract( index::Idx idx, Writer &writer );
+		PartReader extract( index::Idx idx );
 
 		auto raw() const { return _raw; }
 		auto dim() const { return _dim; }
@@ -25,7 +25,8 @@ VM_EXPORT
 		auto block_size() const { return _block_size; }
 		auto block_inner() const { return _block_inner; }
 		auto padding() const { return _padding; }
-
+		auto &index() const { return _index; }
+		
 	private:
 		index::Idx _raw;
 		index::Idx _dim;
@@ -34,6 +35,7 @@ VM_EXPORT
 		size_t _block_size;
 		size_t _block_inner;
 		size_t _padding;
+		std::map<index::Idx, index::__inner__::BlockIndex> &_index;
 
 	private:
 		vm::Box<ExtractorImpl> _;

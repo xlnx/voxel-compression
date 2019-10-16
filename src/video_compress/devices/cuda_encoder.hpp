@@ -1,8 +1,8 @@
 #pragma once
 
 #include "encoder.hpp"
-#include <cudafx/driver/context.hpp>
 #include <nvcodec/NvEncoderCuda.h>
+#include <cuda.h>
 
 namespace vol
 {
@@ -12,6 +12,7 @@ struct CudaEncoder : Encoder
 {
 	CudaEncoder( uint32_t width, uint32_t height, PixelFormat format )
 	{
+		cuCtxGetCurrent( &ctx );
 		_.reset( new NvEncoderCuda( ctx, width, height, into_nv_format( format ) ) );
 	}
 	void encode( Reader &reader, Writer &writer ) override
@@ -54,7 +55,7 @@ struct CudaEncoder : Encoder
 		// vm::println( "Total frames encoded: {}", nFrame );
 	}
 
-	cufx::drv::Context ctx = 0;
+	CUcontext ctx;
 };
 
 VM_END_MODULE()

@@ -2,68 +2,77 @@
 
 #include <nvcodec/NvDecoder.h>
 #include <nvcodec/FFmpegDemuxer.h>
-#include <cudafx/driver/context.hpp>
+#include <cuda.h>
 
 namespace vol
 {
 VM_BEGIN_MODULE( video )
 
+struct ReaderWrapper : FFmpegDemuxer::DataProvider
+{
+	ReaderWrapper( Reader *_ ) :
+	  _( _ )
+	{
+	}
+
+	int GetData( uint8_t *pbuf, int nbuf ) override
+	{
+		auto nread = _->read( reinterpret_cast<char *>( pbuf ), nbuf );
+		if ( !nread ) {
+			return AVERROR_EOF;
+		}
+		return nread;
+	}
+
+	Reader *_;
+};
+
 struct DecompressorImpl final : vm::NoCopy, vm::NoMove
 {
+	DecompressorImpl( Reader &hint ) :
+	  wrapper( &hint ),
+	  demuxer( &wrapper )
+	{
+		cuCtxGetCurrent( &ctx );
+		dec.reset( new NvDecoder( ctx, false, FFmpeg2NvCodecId( demuxer.GetVideoCodec() ) ) );
+	}
+
 	void decompress( Reader &reader, Writer &writer )
 	{
-		struct ReaderWrapper : FFmpegDemuxer::DataProvider
-		{
-			ReaderWrapper( Reader &_ ) :
-			  _( _ ) {}
-
-			int GetData( uint8_t *pbuf, int nbuf ) override
-			{
-				auto nread = _.read( reinterpret_cast<char *>( pbuf ), nbuf );
-				if ( !nread ) {
-					return AVERROR_EOF;
-				}
-				return nread;
-			}
-
-		private:
-			Reader &_;
-		};
-		ReaderWrapper wrapper( reader );
-
-		FFmpegDemuxer demuxer( &wrapper );
-		NvDecoder dec( ctx, false, FFmpeg2NvCodecId( demuxer.GetVideoCodec() ) );
-
+		wrapper._ = &reader;
 		int nVideoBytes = 0, nFrameReturned = 0, nFrame = 0;
 		uint8_t *pVideo = NULL, **ppFrame;
 		bool bDecodeOutSemiPlanar = false;
 
 		do {
 			demuxer.Demux( &pVideo, &nVideoBytes );
-			dec.Decode( pVideo, nVideoBytes, &ppFrame, &nFrameReturned );
-			if ( !nFrame && nFrameReturned ) {
-				vm::println( "INFO: {}", dec.GetVideoInfo() );
-			}
-			bDecodeOutSemiPlanar = ( dec.GetOutputFormat() == cudaVideoSurfaceFormat_NV12 ) || ( dec.GetOutputFormat() == cudaVideoSurfaceFormat_P016 );
+			dec->Decode( pVideo, nVideoBytes, &ppFrame, &nFrameReturned );
+			// if ( !nFrame && nFrameReturned ) {
+			// 	vm::println( "INFO: {}", dec.GetVideoInfo() );
+			// }
+			bDecodeOutSemiPlanar = ( dec->GetOutputFormat() == cudaVideoSurfaceFormat_NV12 ) || ( dec->GetOutputFormat() == cudaVideoSurfaceFormat_P016 );
 
 			for ( int i = 0; i < nFrameReturned; i++ ) {
 				// if ( bOutPlanar && bDecodeOutSemiPlanar ) {
 				// 	ConvertSemiplanarToPlanar( ppFrame[ i ], dec.GetWidth(), dec.GetHeight(), dec.GetBitDepth() );
 				// }
-				writer.write( reinterpret_cast<char *>( ppFrame[ i ] ), dec.GetFrameSize() );
+				writer.write( reinterpret_cast<char *>( ppFrame[ i ] ), dec->GetFrameSize() );
 			}
 			nFrame += nFrameReturned;
 		} while ( nVideoBytes );
 	}
 
 private:
-	cufx::drv::Context ctx = 0;
+	CUcontext ctx;
+	ReaderWrapper wrapper;
+	FFmpegDemuxer demuxer;
+	std::unique_ptr<NvDecoder> dec;
 };
 
 VM_EXPORT
 {
-	Decompressor::Decompressor() :
-	  _( new DecompressorImpl )
+	Decompressor::Decompressor( Reader & hint ) :
+	  _( new DecompressorImpl( hint ) )
 	{
 	}
 	Decompressor::~Decompressor()
