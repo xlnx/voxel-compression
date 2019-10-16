@@ -5,17 +5,17 @@ file(GLOB_RECURSE VIDEO_COMPRESS_SRC
 )
 
 if(VOCOMP_ENABLE_CUDA)
-  vm_external_module(
-    GIT_REPOSITORY https://github.com/cad420/cuda-fx
-    GIT_TAG        master
-  )
+  # vm_external_module(
+  #   GIT_REPOSITORY https://github.com/cad420/cuda-fx
+  #   GIT_TAG        master
+  # )
 
   cuda_add_library(video_compress ${VIDEO_COMPRESS_SRC})
   target_link_libraries(video_compress ${CUDA_CUDA_LIBRARY})
   # target_include_directories(vocomp PRIVATE
   #   ${CUDA_INCLUDE_DIRS}
   # )
-  vm_target_dependency(video_compress cudafx PRIVATE)
+  # vm_target_dependency(video_compress cudafx PRIVATE)
 else()
   add_library(video_compress ${VIDEO_COMPRESS_SRC})
 endif()

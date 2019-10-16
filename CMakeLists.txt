@@ -10,6 +10,7 @@ vm_external_module(
   GIT_TAG        master
 )
 
+find_package(CUDA)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
 
 option(VOCOMP_BUILD_VIDEO_COMPRESS "build wrapped nvidia video compression library" ON)
