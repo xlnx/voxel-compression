@@ -45,6 +45,10 @@ int main( int argc, char **argv )
 			size_t block_size = 1 << log;
 			auto width = block_size * block_size / 2;
 			auto height = block_size;
+			if ( height < 64 ) {
+				width *= 64 / height;
+				height = 64;
+			}
 			while ( width > 4096 ) {
 				width = width >> 1;
 			}
