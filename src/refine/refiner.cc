@@ -316,15 +316,21 @@ public:
 
 				++read_blocks;
 			};
+			const int REV_INTERVAL = std::max(nblocks_per_stride / 20, 1);
+			atomic<int> interval( 0 );
 			auto write_task = [&]( SliceReader block, size_t blkid ) {
-				vm::println( "write block {}", blkid );
+				//vm::println( "write block {}", blkid );
 				const auto one_block = nvoxels_per_block * sizeof( Voxel );
 
 				{
 					auto s = writer.tell();
 					vm::Timer::Scoped t( [&]( auto dt ) {
 						auto t = writer.tell();
-						vm::println( "written {} bytes in {}", t - s, dt.s() );
+						interval++;
+						if ( interval.load() == REV_INTERVAL ) {
+							vm::println( "written {} bytes in {}", t - s, dt.s() );
+							interval.store( 0 );
+						}
 					} );
 					auto buf = reinterpret_cast<char const *>( write_buffer.data() );
 					auto idx = index::Idx{}
@@ -342,13 +348,15 @@ public:
 				}
 				++written_blocks;
 
-				float cur_percent = written_blocks * 1.0 / dim.total();
-				size_t seconds = t.eval_remaining_time( cur_percent ) / 1000000;
-				const int hh = seconds / 3600;
-				const int mm = ( seconds - hh * 3600 ) / 60;
-				const int ss = int( seconds ) % 60;
-				printf( "%20lld blocks finished, made up %.2f%%. Estimated remaining time: %02d:%02d:%02d\n",
-						written_blocks, written_blocks * 100.0 / dim.total(), hh, mm, ss );
+				if ( interval.load() == 0 ) {
+					float cur_percent = written_blocks * 1.0 / dim.total();
+					size_t seconds = t.eval_remaining_time( cur_percent ) / 1000000;
+					const int hh = seconds / 3600;
+					const int mm = ( seconds - hh * 3600 ) / 60;
+					const int ss = int( seconds ) % 60;
+					printf( "%20lld blocks finished, made up %.2f%%. Estimated remaining time: %02d:%02d:%02d\n",
+							written_blocks, written_blocks * 100.0 / dim.total(), hh, mm, ss );
+				}
 			};
 			auto exchange_sink = koi::future::sink();
 			auto write_sink = koi::future::sink();
