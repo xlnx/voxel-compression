@@ -2,6 +2,7 @@
 
 #include <VMUtils/nonnull.hpp>
 #include <VMUtils/concepts.hpp>
+#include "method.hpp"
 #include "../io.hpp"
 
 namespace vol
@@ -14,7 +15,7 @@ VM_EXPORT
 {
 	struct Decompressor final : Pipe, vm::NoCopy
 	{
-		Decompressor( Reader &hint );
+		Decompressor( EncodeMethod encode );
 		~Decompressor();
 
 		void decompress( Reader &reader, Writer &writer );

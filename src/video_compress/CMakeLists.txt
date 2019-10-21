@@ -21,6 +21,33 @@ else()
 endif()
 vm_target_dependency(video_compress VMUtils PUBLIC)
 
+find_path(FFMPEG_INCLUDE_DIR
+  NAMES ffmpeg/libavcodec/avcodec.h
+  PATHS ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES}
+)
+target_include_directories(video_compress PRIVATE
+  ${FFMPEG_INCLUDE_DIR}/ffmpeg
+)
+if(UNIX AND NOT APPLE)
+  find_library(AVUTIL_LIB
+    NAMES avutil
+    PATHS ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES}
+  )
+  find_library(AVCODEC_LIB
+    NAMES avcodec
+    PATHS ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES}
+  )
+  find_library(AVFORMAT_LIB
+    NAMES avformat
+    PATHS ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES}
+  )
+  target_link_libraries(video_compress
+    ${AVUTIL_LIB}
+    ${AVCODEC_LIB}
+    ${AVFORMAT_LIB}
+  )
+endif()
+
 if(MSVC)
   if(CMAKE_CL_64)
     target_link_libraries(video_compress

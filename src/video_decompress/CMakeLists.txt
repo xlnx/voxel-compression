@@ -14,6 +14,7 @@ vm_external_module(
 )
 
 cuda_add_library(video_decompress ${VIDEO_DECOMPRESS_SRC})
+target_link_libraries(video_decompress ${CUDA_CUDA_LIBRARY})
 if(MSVC)
   if(CMAKE_CL_64)
     target_link_libraries(video_decompress
@@ -29,35 +30,8 @@ else()
     ${PROJECT_SOURCE_DIR}/lib/linux/stubs/x86_64/libnvcuvid.so
   )
 endif()
-vm_target_dependency(video_decompress cudafx PUBLIC)
+vm_target_dependency(video_decompress cudafx PRIVATE)
 
-find_path(FFMPEG_INCLUDE_DIR
-  NAMES ffmpeg/libavcodec/avcodec.h
-  PATHS ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES}
-)
-set(FFMPEG_INCLUDE_DIR ${FFMPEG_INCLUDE_DIR}/ffmpeg)
-if(UNIX AND NOT APPLE)
-  find_library(AVUTIL_LIB
-    NAMES avutil
-    PATHS ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES}
-  )
-  find_library(AVCODEC_LIB
-    NAMES avcodec
-    PATHS ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES}
-  )
-  find_library(AVFORMAT_LIB
-    NAMES avformat
-    PATHS ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES}
-  )
-  target_link_libraries(video_decompress
-    ${AVUTIL_LIB}
-    ${AVCODEC_LIB}
-    ${AVFORMAT_LIB}
-  )
-endif()
 target_include_directories(video_decompress PUBLIC
   ${PROJECT_SOURCE_DIR}/include
-)
-target_include_directories(video_decompress PRIVATE
-  ${FFMPEG_INCLUDE_DIR}
 )

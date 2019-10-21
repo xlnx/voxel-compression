@@ -3,6 +3,7 @@
 #include <VMUtils/nonnull.hpp>
 #include <VMUtils/concepts.hpp>
 #include <VMUtils/attributes.hpp>
+#include "method.hpp"
 #include "../io.hpp"
 
 namespace vol
@@ -13,11 +14,6 @@ struct CompressorImpl;
 
 VM_EXPORT
 {
-	enum class EncodeMethod : char
-	{
-		H264,
-		HEVC
-	};
 	enum class EncodePreset : char
 	{
 		Default,

@@ -1,77 +1,67 @@
 #include <vocomp/video/decompressor.hpp>
 
 #include <nvcodec/NvDecoder.h>
-#include <nvcodec/FFmpegDemuxer.h>
 #include <cudafx/driver/context.hpp>
 
 namespace vol
 {
 VM_BEGIN_MODULE( video )
 
-struct ReaderWrapper : FFmpegDemuxer::DataProvider
-{
-	ReaderWrapper( Reader *_ ) :
-	  _( _ )
-	{
-	}
-
-	int GetData( uint8_t *pbuf, int nbuf ) override
-	{
-		auto nread = _->read( reinterpret_cast<char *>( pbuf ), nbuf );
-		if ( !nread ) {
-			return AVERROR_EOF;
-		}
-		return nread;
-	}
-
-	Reader *_;
-};
-
 struct DecompressorImpl final : vm::NoCopy, vm::NoMove
 {
-	DecompressorImpl( Reader &hint ) :
-	  wrapper( &hint ),
-	  demuxer( &wrapper ),
-	  dec( ctx, false, FFmpeg2NvCodecId( demuxer.GetVideoCodec() ) )
+	DecompressorImpl( EncodeMethod encode )
 	{
+		dec.reset(
+		  new NvDecoder(
+			ctx, false,
+			[&] {
+				switch ( encode ) {
+				case EncodeMethod::H264: return cudaVideoCodec_H264;
+				case EncodeMethod::HEVC: return cudaVideoCodec_HEVC;
+				default: throw std::runtime_error( "unknown encoding" );
+				}
+			}() ) );
 	}
 
 	void decompress( Reader &reader, Writer &writer )
 	{
-		wrapper._ = &reader;
-		int nVideoBytes = 0, nFrameReturned = 0, nFrame = 0;
-		uint8_t *pVideo = NULL, **ppFrame;
-		bool bDecodeOutSemiPlanar = false;
+		thread_local auto packet = std::vector<char>( 1024 );
 
-		do {
-			demuxer.Demux( &pVideo, &nVideoBytes );
-			dec.Decode( pVideo, nVideoBytes, &ppFrame, &nFrameReturned );
-			// if ( !nFrame && nFrameReturned ) {
-			// 	vm::println( "INFO: {}", dec.GetVideoInfo() );
-			// }
-			bDecodeOutSemiPlanar = ( dec.GetOutputFormat() == cudaVideoSurfaceFormat_NV12 ) || ( dec.GetOutputFormat() == cudaVideoSurfaceFormat_P016 );
+		int totaldec = 0;
+		uint8_t **ppframe;
+		int nframedec;
 
-			for ( int i = 0; i < nFrameReturned; i++ ) {
-				// if ( bOutPlanar && bDecodeOutSemiPlanar ) {
-				// 	ConvertSemiplanarToPlanar( ppFrame[ i ], dec.GetWidth(), dec.GetHeight(), dec.GetBitDepth() );
-				// }
-				writer.write( reinterpret_cast<char *>( ppFrame[ i ] ), dec.GetFrameSize() );
+		uint32_t nframes;
+		reader.read( reinterpret_cast<char *>( &nframes ), sizeof( nframes ) );
+		thread_local std::vector<uint32_t> frame_len;
+		frame_len.resize( nframes + 1 );
+		reader.read( reinterpret_cast<char *>( frame_len.data() ),
+					 sizeof( uint32_t ) * nframes );
+		frame_len[ nframes ] = 0;
+
+		for ( auto &len : frame_len ) {
+			if ( len > packet.size() ) {
+				packet.resize( len );
 			}
-			nFrame += nFrameReturned;
-		} while ( nVideoBytes );
+			reader.read( packet.data(), len );
+			dec->Decode( reinterpret_cast<uint8_t *>( packet.data() ), len, &ppframe, &nframedec );
+
+			for ( int i = 0; i < nframedec; i++ ) {
+				writer.write( reinterpret_cast<char *>( ppframe[ i ] ), dec->GetFrameSize() );
+			}
+			totaldec += nframedec;
+		}
 	}
 
 private:
 	cufx::drv::Context ctx = 0;
-	ReaderWrapper wrapper;
-	FFmpegDemuxer demuxer;
-	NvDecoder dec;
+	std::unique_ptr<NvDecoder> dec;
 };
 
 VM_EXPORT
 {
-	Decompressor::Decompressor( Reader & hint ) :
-	  _( new DecompressorImpl( hint ) )
+	Decompressor::Decompressor( EncodeMethod encode ) :
+	  _( new DecompressorImpl( encode ) )
 	{
 	}
 	Decompressor::~Decompressor()
