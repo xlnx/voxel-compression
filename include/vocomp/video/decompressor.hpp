@@ -2,6 +2,7 @@
 
 #include <VMUtils/nonnull.hpp>
 #include <VMUtils/concepts.hpp>
+#include <VMUtils/attributes.hpp>
 #include "method.hpp"
 #include "../io.hpp"
 
@@ -13,9 +14,14 @@ struct DecompressorImpl;
 
 VM_EXPORT
 {
+	struct DecompressorOptions
+	{
+		VM_DEFINE_ATTRIBUTE( EncodeMethod, encode ) = EncodeMethod::H264;
+	};
+
 	struct Decompressor final : Pipe, vm::NoCopy
 	{
-		Decompressor( EncodeMethod encode );
+		Decompressor( DecompressorOptions const &opts = DecompressorOptions{} );
 		~Decompressor();
 
 		void decompress( Reader &reader, Writer &writer );

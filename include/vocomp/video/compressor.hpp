@@ -64,9 +64,11 @@ VM_EXPORT
 		~Compressor();
 
 		void transfer( Reader &reader, Writer &writer ) override;
+		uint32_t frame_count() const { return nframes; }
 
 	private:
 		vm::Box<CompressorImpl> _;
+		uint32_t nframes = 0;
 	};
 }
 

@@ -9,13 +9,13 @@ VM_BEGIN_MODULE( video )
 
 struct DecompressorImpl final : vm::NoCopy, vm::NoMove
 {
-	DecompressorImpl( EncodeMethod encode )
+	DecompressorImpl( DecompressorOptions const &opts )
 	{
 		dec.reset(
 		  new NvDecoder(
 			ctx, false,
 			[&] {
-				switch ( encode ) {
+				switch ( opts.encode ) {
 				case EncodeMethod::H264: return cudaVideoCodec_H264;
 				case EncodeMethod::HEVC: return cudaVideoCodec_HEVC;
 				default: throw std::runtime_error( "unknown encoding" );
@@ -60,8 +60,8 @@ private:
 
 VM_EXPORT
 {
-	Decompressor::Decompressor( EncodeMethod encode ) :
-	  _( new DecompressorImpl( encode ) )
+	Decompressor::Decompressor( DecompressorOptions const &opts ) :
+	  _( new DecompressorImpl( opts ) )
 	{
 	}
 	Decompressor::~Decompressor()
