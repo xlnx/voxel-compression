@@ -48,7 +48,7 @@ VM_EXPORT
 		void put( Idx const &idx, R &reader )
 		{
 			if ( index.find( idx ) != index.end() ) {
-				return;
+				throw runtime_error( vm::fmt( "duplicate entry: {}", idx ) );
 			}
 			auto a = writer.tell();
 			// auto x = reader.tell();
