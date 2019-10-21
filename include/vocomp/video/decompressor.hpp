@@ -22,7 +22,7 @@ VM_EXPORT
 	{
 		VM_DEFINE_ATTRIBUTE( EncodeMethod, encode );
 		VM_DEFINE_ATTRIBUTE( unsigned, io_queue_size ) = 4;
-	};	
+	};
 
 	struct Decompressor final : Pipe, vm::NoCopy
 	{
@@ -31,7 +31,6 @@ VM_EXPORT
 
 		void decompress( Reader &reader, Writer &writer );
 		void decompress( Reader &reader, cufx::MemoryView1D<unsigned char> const &swap );
-
 		void transfer( Reader &reader, Writer &writer ) override
 		{
 			decompress( reader, writer );

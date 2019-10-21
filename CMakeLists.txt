@@ -56,8 +56,13 @@ endif()
 option(VOCOMP_BUILD_REFINER "build refiner library" ON)
 option(VOCOMP_BUILD_EXTRACTOR "build extractor library" ON)
 option(VOCOMP_BUILD_TOOLS "build tools" ON)
+option(VOCOMP_BUILD_TESTS "build tests" OFF)
 
 add_subdirectory(src)
 if(VOCOMP_BUILD_TOOLS)
   add_subdirectory(tools)
+endif()
+
+if(VOCOMP_BUILD_TESTS)
+  add_subdirectory(tests)
 endif()

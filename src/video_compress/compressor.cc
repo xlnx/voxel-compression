@@ -46,63 +46,67 @@ struct CompressorImpl
 		_->_->Allocate();
 	}
 
-	void transfer( Reader &reader, Writer &writer )
+	uint32_t transfer( Reader &reader, Writer &writer )
 	{
 		_->_->CreateEncoder( &_->params );
+
+		thread_local std::vector<char> block;
+		block.clear();
+
+		_->encode( reader, block );
+
+		struct ReaderWrapper : FFmpegDemuxer::DataProvider
 		{
-			thread_local std::vector<char> block;
-			block.clear();
-
-			_->encode( reader, block );
-
-			struct ReaderWrapper : FFmpegDemuxer::DataProvider
+			int GetData( uint8_t *pbuf, int nbuf ) override
 			{
-				int GetData( uint8_t *pbuf, int nbuf ) override
-				{
-					auto nread = _->read( reinterpret_cast<char *>( pbuf ), nbuf );
-					if ( !nread ) {
-						return AVERROR_EOF;
-					}
-					return nread;
+				auto nread = _->read( reinterpret_cast<char *>( pbuf ), nbuf );
+				if ( !nread ) {
+					return AVERROR_EOF;
 				}
+				return nread;
+			}
 
-				SliceReader *_;
-			};
+			SliceReader *_;
+		};
 
-			thread_local ReaderWrapper wrapper;
-			// only the first block is needed to set up demuxer
-			thread_local FFmpegDemuxer demuxer(
-			  [&] {
-				  SliceReader reader( block.data(), block.size() );
-				  wrapper._ = &reader;
-				  return FFmpegDemuxer( &wrapper );
-			  }() );
+		thread_local ReaderWrapper wrapper;
+		// only the first block is needed to set up demuxer
+		thread_local FFmpegDemuxer demuxer(
+		  [&] {
+			  SliceReader reader( block.data(), block.size() );
+			  wrapper._ = &reader;
+			  return FFmpegDemuxer( &wrapper );
+		  }() );
 
+		thread_local std::vector<char> buffer;
+		thread_local std::vector<uint32_t> frame_len;
+		buffer.clear();
+		frame_len.clear();
+
+		{
 			SliceReader reader( block.data(), block.size() );
 			wrapper._ = &reader;
-
-			thread_local std::vector<char> buffer;
-			thread_local std::vector<uint32_t> frame_len;
-			buffer.clear();
-			frame_len.clear();
 
 			int len = 0;
 			uint8_t *pframe = nullptr;
 			do {
 				demuxer.Demux( &pframe, &len );
+				// vm::println( "{}", len );
 				if ( len ) {
 					frame_len.emplace_back( len );
 					auto fp = reinterpret_cast<char *>( pframe );
 					buffer.insert( buffer.end(), fp, fp + len );
 				}
 			} while ( len );
-
-			uint32_t nframes = frame_len.size();
-			writer.write( reinterpret_cast<char *>( &nframes ), sizeof( uint32_t ) );
-			writer.write( reinterpret_cast<char *>( frame_len.data() ),
-						  sizeof( uint32_t ) * nframes );
-			writer.write( buffer.data(), buffer.size() );
 		}
+
+		uint32_t nframes = frame_len.size();
+		writer.write( reinterpret_cast<char *>( &nframes ), sizeof( uint32_t ) );
+		writer.write( reinterpret_cast<char *>( frame_len.data() ),
+					  sizeof( uint32_t ) * nframes );
+		writer.write( buffer.data(), buffer.size() );
+
+		return nframes;
 	}
 
 	~CompressorImpl()
@@ -139,7 +143,7 @@ VM_EXPORT
 
 	void Compressor::transfer( Reader & reader, Writer & writer )
 	{
-		_->transfer( reader, writer );
+		this->nframes = _->transfer( reader, writer );
 	}
 }
 

@@ -126,9 +126,9 @@ struct DecompressorImpl final : vm::NoCopy, vm::NoMove
 	{
 		// assert(dst.size() == block_size)
 		auto dp_dst = dst.ptr();
-		vm::println("is_device: {}", dst.device_id().is_device());
+		vm::println( "is_device: {}", dst.device_id().is_device() );
 		auto on_picture_display = [&]( CUdeviceptr dp_src, unsigned src_pitch, CUstream stream ) {
-			vm::println( "picture display {} {}", (void*)dp_src, (void*)dp_dst );
+			vm::println( "picture display {} {}", (void *)dp_src, (void *)dp_dst );
 
 			CUDA_MEMCPY2D m = {};
 			m.srcMemoryType = CU_MEMORYTYPE_DEVICE;
@@ -137,13 +137,13 @@ struct DecompressorImpl final : vm::NoCopy, vm::NoMove
 			m.dstPitch = m.WidthInBytes = width;
 
 			m.srcDevice = dp_src;
-			m.dstDevice = (CUdeviceptr)(m.dstHost = dp_dst);
+			m.dstDevice = ( CUdeviceptr )( m.dstHost = dp_dst );
 			m.Height = luma_height;
 			CUDA_DRVAPI_CALL( cuMemcpy2DAsync( &m, stream ) );  //ck
 			dp_dst += m.WidthInBytes * m.Height;
 
 			m.srcDevice = dp_src + m.srcPitch * surface_height;
-			m.dstDevice = (CUdeviceptr)(m.dstHost = dp_dst);
+			m.dstDevice = ( CUdeviceptr )( m.dstHost = dp_dst );
 			m.Height = chroma_height;
 			CUDA_DRVAPI_CALL( cuMemcpy2DAsync( &m, stream ) );  //ck
 			dp_dst += m.WidthInBytes * m.Height;
@@ -155,23 +155,23 @@ struct DecompressorImpl final : vm::NoCopy, vm::NoMove
 				  auto packet = get_packet( len );
 				  reader.read( packet, len );
 				  decode_and_advance( packet, len );
-				//   dec->Decode( reinterpret_cast<uint8_t *>( packet ), len, nullptr, nullptr );
+				  //   dec->Decode( reinterpret_cast<uint8_t *>( packet ), len, nullptr, nullptr );
 			  }
 			  while ( pending_frames.load() ) {}
-			  vm::println("decoded {} frames, {} bytes", frame_len.size() - 1, dp_dst - dst.ptr() );
+			  vm::println( "decoded {} frames, {} bytes", frame_len.size() - 1, dp_dst - dst.ptr() );
 		  } );
 	}
 
 public:
-	DecompressorImpl( DecompressorOptions const &opts ):
-		io_queue_size( opts.io_queue_size ),
-		pending_frames( 0 ),
-		stop(false),
-		rt_thread( [this] {
-			while (!this->stop.load()) {
-				this->rt.run();
-			}
-		})
+	DecompressorImpl( DecompressorOptions const &opts ) :
+	  io_queue_size( opts.io_queue_size ),
+	  pending_frames( 0 ),
+	  stop( false ),
+	  rt_thread( [this] {
+		  while ( !this->stop.load() ) {
+			  this->rt.run();
+		  }
+	  } )
 	{
 		NVDEC_API_CALL( cuvidCtxLockCreate( &ctxlock, ctx ) );
 
@@ -192,7 +192,7 @@ public:
 	}
 	~DecompressorImpl()
 	{
-		stop.store(true);
+		stop.store( true );
 		rt_thread.join();
 		if ( decoder ) {
 			cuvidDestroyDecoder( decoder );
@@ -204,10 +204,10 @@ public:
 	}
 
 private:
-	struct Slot: vm::NoCopy, vm::NoMove
+	struct Slot : vm::NoCopy, vm::NoMove
 	{
-		Slot():
-			ready( true )
+		Slot() :
+		  ready( true )
 		{
 			CUDA_DRVAPI_CALL( cuStreamCreate( &stream, CU_STREAM_NON_BLOCKING ) );
 		}
@@ -223,7 +223,7 @@ private:
 	void decode_and_advance( char *data, int len, uint32_t flags = 0 )
 	{
 		CUVIDSOURCEDATAPACKET packet = {};
-		packet.payload = reinterpret_cast<unsigned char*>( data );
+		packet.payload = reinterpret_cast<unsigned char *>( data );
 		packet.payload_size = len;
 		packet.flags = flags;
 		if ( !data || len == 0 ) {
@@ -258,9 +258,9 @@ private:
 		}
 
 		if ( format->coded_width > caps.nMaxWidth ||
-			format->coded_height > caps.nMaxHeight ) {
+			 format->coded_height > caps.nMaxHeight ) {
 			throw std::runtime_error( "unsupported resolution" );
-				// vm::fmt("{}: {}x{}\n") );
+			// vm::fmt("{}: {}x{}\n") );
 		}
 
 		if ( ( format->coded_width >> 4 ) * ( format->coded_height >> 4 ) > caps.nMaxMBCount ) {
@@ -292,7 +292,7 @@ private:
 			info.DeinterlaceMode = cudaVideoDeinterlaceMode_Adaptive;
 		}
 		info.ulCreationFlags = cudaVideoCreate_PreferCUVID;
-		info.ulNumOutputSurfaces = info.ulNumDecodeSurfaces = io_queue_size;   /* <---- */
+		info.ulNumOutputSurfaces = info.ulNumDecodeSurfaces = io_queue_size; /* <---- */
 		info.vidLock = ctxlock;
 
 		surface_width = info.ulWidth = info.ulTargetWidth = format->coded_width;
@@ -300,21 +300,21 @@ private:
 
 		width = format->display_area.right - format->display_area.left;
 		luma_height = format->display_area.bottom - format->display_area.top;
-		chroma_height = luma_height * [&]{
+		chroma_height = luma_height * [&] {
 			switch ( format->chroma_format ) {
 			case cudaVideoChromaFormat_Monochrome: return 0.0;
 			default: return 0.5;
 			case cudaVideoChromaFormat_422: return 1.0;
 			case cudaVideoChromaFormat_444: return 1.0;
 			}
-		} ();
+		}();
 		chroma_plains = [&] {
 			switch ( format->chroma_format ) {
 			case cudaVideoChromaFormat_Monochrome: return 0;
 			default: return 1;
 			case cudaVideoChromaFormat_444: return 2;
 			}
-		} ();
+		}();
 
 		CUDA_DRVAPI_CALL( cuCtxPushCurrent( ctx ) );
 		NVDEC_API_CALL( cuvidCreateDecoder( &decoder, &info ) );
@@ -344,7 +344,7 @@ private:
 		CUdeviceptr dp_src = 0;
 		unsigned int src_pitch = 0;
 
-		vm::println("pid = {}", pid);
+		vm::println( "pid = {}", pid );
 		++pending_frames;
 		bool ready = true;
 		while ( !slots[ pid ].ready.compare_exchange_weak( ready, false ) ) {
@@ -355,44 +355,42 @@ private:
 
 		CUVIDGETDECODESTATUS stat = {};
 		CUresult result = cuvidGetDecodeStatus( decoder, pid, &stat );
-		if ( result == CUDA_SUCCESS && 
-			( stat.decodeStatus == cuvidDecodeStatus_Error || 
-			  stat.decodeStatus == cuvidDecodeStatus_Error_Concealed ) ) {
+		if ( result == CUDA_SUCCESS &&
+			 ( stat.decodeStatus == cuvidDecodeStatus_Error ||
+			   stat.decodeStatus == cuvidDecodeStatus_Error_Concealed ) ) {
 			vm::println( "decode error occurred" );
 		}
 
 		cuCtxPushCurrent( ctx );  //ck
-		(*on_picture_display)( dp_src, src_pitch, stream );
+		( *on_picture_display )( dp_src, src_pitch, stream );
 		cuCtxPopCurrent( nullptr );  //ck
 		rt.spawn(
-			koi::future::poll_fn<void>(
-				[this, pid, dp_src, stream](auto &_) -> koi::future::PollState {
-					switch ( auto res = cuStreamQuery( stream ) ) {
-					case CUDA_ERROR_NOT_READY: return koi::future::PollState::Pending;
-					default: 
-						NVDEC_API_CALL( cuvidUnmapVideoFrame( this->decoder, dp_src ) );
-						this->slots[ pid ].ready.store( true );
-						--pending_frames;
-						return CUDA_SUCCESS == res ? koi::future::PollState::Ok : koi::future::PollState::Pruned;
-					}
+		  koi::future::poll_fn<void>(
+			[this, pid, dp_src, stream]( auto &_ ) -> koi::future::PollState {
+				switch ( auto res = cuStreamQuery( stream ) ) {
+				case CUDA_ERROR_NOT_READY: return koi::future::PollState::Pending;
+				default:
+					NVDEC_API_CALL( cuvidUnmapVideoFrame( this->decoder, dp_src ) );
+					this->slots[ pid ].ready.store( true );
+					--pending_frames;
+					return CUDA_SUCCESS == res ? koi::future::PollState::Ok : koi::future::PollState::Pruned;
 				}
-			)
-		 );
+			} ) );
 		return 1;
 	}
 
 private:
-	static int CUDAAPI handle_video_sequence_proc( void *self, CUVIDEOFORMAT *params ) 
-	{ 
-		return reinterpret_cast<DecompressorImpl*>( self )->handle_video_sequence( params ); 
+	static int CUDAAPI handle_video_sequence_proc( void *self, CUVIDEOFORMAT *params )
+	{
+		return reinterpret_cast<DecompressorImpl *>( self )->handle_video_sequence( params );
 	}
 	static int CUDAAPI handle_picture_decode_proc( void *self, CUVIDPICPARAMS *params )
-	{ 
-		return reinterpret_cast<DecompressorImpl*>( self )->handle_picture_decode( params ); 
+	{
+		return reinterpret_cast<DecompressorImpl *>( self )->handle_picture_decode( params );
 	}
 	static int CUDAAPI handle_picture_display_proc( void *self, CUVIDPARSERDISPINFO *params )
-	{ 
-		return reinterpret_cast<DecompressorImpl*>( self )->handle_picture_display( params ); 
+	{
+		return reinterpret_cast<DecompressorImpl *>( self )->handle_picture_display( params );
 	}
 
 private:
@@ -409,7 +407,7 @@ private:
 	vm::With<std::function<void( CUdeviceptr, unsigned, CUstream )>> on_picture_display;
 	std::atomic<int> pending_frames;
 	std::unique_ptr<Slot[]> slots;
-	
+
 	koi::runtime::current_thread::Runtime rt;
 	std::atomic<bool> stop;
 	std::thread rt_thread;
