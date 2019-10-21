@@ -12,6 +12,11 @@ vm_external_module(
   GIT_REPOSITORY https://github.com/cad420/cuda-fx
   GIT_TAG        master
 )
+vm_external_module(
+  GIT_REPOSITORY https://github.com/cad420/koi
+  GIT_TAG        master
+)
+add_definitions(-DKOI_NO_LIBUV_REACTOR)
 
 cuda_add_library(video_decompress ${VIDEO_DECOMPRESS_SRC})
 target_link_libraries(video_decompress ${CUDA_CUDA_LIBRARY})
@@ -31,6 +36,7 @@ else()
   )
 endif()
 vm_target_dependency(video_decompress cudafx PRIVATE)
+vm_target_dependency(video_decompress koi PRIVATE)
 
 target_include_directories(video_decompress PUBLIC
   ${PROJECT_SOURCE_DIR}/include
