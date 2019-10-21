@@ -25,6 +25,10 @@ VM_EXPORT
 		auto block_size() const { return _block_size; }
 		auto block_inner() const { return _block_inner; }
 		auto padding() const { return _padding; }
+		auto &index() const { return _index; }
+
+	private:
+		vm::Box<ExtractorImpl> _;
 
 	private:
 		index::Idx _raw;
@@ -34,9 +38,7 @@ VM_EXPORT
 		size_t _block_size;
 		size_t _block_inner;
 		size_t _padding;
-
-	private:
-		vm::Box<ExtractorImpl> _;
+		std::map<index::Idx, index::__inner__::BlockIndex> &_index;
 	};
 }
 

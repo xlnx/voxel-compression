@@ -19,7 +19,6 @@ struct ExtractorImpl final : vm::NoCopy, vm::NoMove
 		return decomp.get( idx );
 	}
 
-private:
 	PartReader content;
 	index::Decompressor<> decomp;
 };
@@ -27,7 +26,8 @@ private:
 VM_EXPORT
 {
 	Extractor::Extractor( Reader & reader ) :
-	  _( new ExtractorImpl( reader ) )
+	  _( new ExtractorImpl( reader ) ),
+	  _index( _->decomp.get_index() )
 	{
 		PartReader header_reader( reader, 0, sizeof( Header ) );
 		auto header = Header::read_from( header_reader );

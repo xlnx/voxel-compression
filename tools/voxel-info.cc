@@ -10,9 +10,8 @@ int main( int argc, char **argv )
 	try {
 		ifstream in( argv[ 1 ], std::ios::ate | std::ios::binary );
 		auto len = in.tellg();
-		vol::Copy copy;
 		vol::StreamReader reader( in, 0, len );
-		vol::refine::Extractor e( reader, copy );
+		vol::refine::Extractor e( reader );
 
 		if ( argc <= 2 ) {
 			vm::println( "{>16}: {}", "Size", e.raw() );
