@@ -47,8 +47,6 @@ struct CompressorImpl
 
 	uint32_t transfer( Reader &reader, Writer &writer )
 	{
-		_->_->CreateEncoder( &_->params );
-
 		thread_local std::vector<char> frames;
 		thread_local std::vector<uint32_t> frame_len;
 		frames.clear();

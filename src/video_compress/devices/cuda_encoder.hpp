@@ -22,6 +22,13 @@ struct CudaEncoder : Encoder
 		std::unique_ptr<uint8_t[]> pHostFrame( new uint8_t[ nFrameSize ] );
 		int nFrame = 0;
 
+		thread_local auto params = [] {
+			NV_ENC_PIC_PARAMS params;
+			params.encodePicFlags = NV_ENC_PIC_FLAG_OUTPUT_SPSPPS |
+									NV_ENC_PIC_FLAG_FORCEIDR;
+			return params;
+		}();
+
 		while ( true ) {
 			// For receiving encoded packets
 			std::vector<std::vector<uint8_t>> vPacket;
@@ -37,7 +44,7 @@ struct CudaEncoder : Encoder
 												  encoderInputFrame->bufferFormat,
 												  encoderInputFrame->chromaOffsets,
 												  encoderInputFrame->numChromaPlanes );
-				_.EncodeFrame( vPacket );
+				_.EncodeFrame( vPacket, nFrame ? nullptr : &params );
 			} else {
 				_.EndEncode( vPacket );
 			}

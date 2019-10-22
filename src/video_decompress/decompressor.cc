@@ -145,14 +145,20 @@ struct DecompressorImpl final : vm::NoCopy, vm::NoMove
 			m.srcDevice = dp_src;
 			m.dstDevice = ( CUdeviceptr )( m.dstHost = dp_dst );
 			m.Height = luma_height;
-			CUDA_DRVAPI_CALL( cuMemcpy2DAsync( &m, stream ) );  //ck
 			dp_dst += m.WidthInBytes * m.Height;
+			if ( dp_dst > dp_dst_end ) {
+				throw std::runtime_error( "buffer size not enough" );
+			}
+			CUDA_DRVAPI_CALL( cuMemcpy2DAsync( &m, stream ) );  //ck
 
 			m.srcDevice = dp_src + m.srcPitch * surface_height;
 			m.dstDevice = ( CUdeviceptr )( m.dstHost = dp_dst );
 			m.Height = chroma_height;
-			CUDA_DRVAPI_CALL( cuMemcpy2DAsync( &m, stream ) );  //ck
 			dp_dst += m.WidthInBytes * m.Height;
+			if ( dp_dst > dp_dst_end ) {
+				throw std::runtime_error( "buffer size not enough" );
+			}
+			CUDA_DRVAPI_CALL( cuMemcpy2DAsync( &m, stream ) );  //ck
 		};
 		this->on_picture_display.with(
 		  on_picture_display, [&] {
