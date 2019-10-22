@@ -127,7 +127,7 @@ struct DecompressorImpl final : vm::NoCopy, vm::NoMove
 		// assert(dst.size() == block_size)
 		auto dp_dst = dst.ptr();
 		auto dp_dst_end = dp_dst + dst.size();
-		vm::println( "is_device: {}", dst.device_id().is_device() );
+		// vm::println( "is_device: {}", dst.device_id().is_device() );
 		auto on_picture_display = [&]( CUdeviceptr dp_src, unsigned src_pitch, CUstream stream ) {
 			// vm::println( "picture display {} {}", (void *)dp_src, (void *)dp_dst );
 
@@ -328,7 +328,7 @@ private:
 		NVDEC_API_CALL( cuvidCreateDecoder( &decoder, &info ) );
 		CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );
 
-		vm::println( "setup decoder" );
+		vm::println( "nvdec setup decoder" );
 
 		return io_queue_size;
 	}
