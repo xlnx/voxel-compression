@@ -16,7 +16,7 @@ struct GLEncoder : Encoder
 	{
 		_.reset( new NvEncoderGL( width, height, into_nv_format( format ) ) );
 	}
-	void encode( Reader &reader, std::vector<char> &block ) override
+	void encode( Reader &reader, std::vector<char> &frames, std::vector<uint32_t> &frame_len ) override
 	{
 		auto &_ = *this->_;
 
@@ -46,7 +46,8 @@ struct GLEncoder : Encoder
 
 			for ( auto &packet : vPacket ) {
 				auto packet_begin = reinterpret_cast<char *>( packet.data() );
-				block.insert( block.end(), packet_begin, packet_begin + packet.size() );
+				frames.insert( frames.end(), packet_begin, packet_begin + packet.size() );
+				frame_len.emplace_back( packet.size() );
 			}
 
 			if ( nRead != nFrameSize ) break;

@@ -14,13 +14,20 @@ struct CudaEncoder : Encoder
 	{
 		_.reset( new NvEncoderCuda( ctx, width, height, into_nv_format( format ) ) );
 	}
-	void encode( Reader &reader, std::vector<char> &block ) override
+	void encode( Reader &reader, std::vector<char> &frames, std::vector<uint32_t> &frame_len ) override
 	{
 		auto &_ = *this->_;
 
 		int nFrameSize = _.GetFrameSize();
 		std::unique_ptr<uint8_t[]> pHostFrame( new uint8_t[ nFrameSize ] );
 		int nFrame = 0;
+
+		thread_local auto params = [] {
+			NV_ENC_PIC_PARAMS params;
+			params.encodePicFlags = NV_ENC_PIC_FLAG_OUTPUT_SPSPPS |
+									NV_ENC_PIC_FLAG_FORCEIDR;
+			return params;
+		}();
 
 		while ( true ) {
 			// For receiving encoded packets
@@ -37,7 +44,7 @@ struct CudaEncoder : Encoder
 												  encoderInputFrame->bufferFormat,
 												  encoderInputFrame->chromaOffsets,
 												  encoderInputFrame->numChromaPlanes );
-				_.EncodeFrame( vPacket );
+				_.EncodeFrame( vPacket, nFrame ? nullptr : &params );
 			} else {
 				_.EndEncode( vPacket );
 			}
@@ -46,7 +53,8 @@ struct CudaEncoder : Encoder
 
 			for ( auto &packet : vPacket ) {
 				auto packet_begin = reinterpret_cast<char *>( packet.data() );
-				block.insert( block.end(), packet_begin, packet_begin + packet.size() );
+				frames.insert( frames.end(), packet_begin, packet_begin + packet.size() );
+				frame_len.emplace_back( packet.size() );
 			}
 
 			if ( nRead != nFrameSize ) break;
