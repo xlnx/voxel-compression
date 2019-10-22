@@ -24,12 +24,12 @@ TEST( test_video_decomp, test_video_decomp )
 	auto comp_opts = CompressOptions{}
 					   .set_encode_method( EncodeMethod::H264 )
 					   .set_encode_preset( EncodePreset::Default )
-					   .set_pixel_format( PixelFormat::NV12 )
+					   .set_pixel_format( PixelFormat::IYUV )
 					   .set_width( width )
 					   .set_height( height );
 	Compressor compressor( comp_opts );
 	compressor.transfer( raw_nv12_reader, compressed_writer );
-	EXPECT_EQ( compressor.frame_count(), nframes * 2 );
+	EXPECT_EQ( compressor.frame_count(), nframes );
 
 	EXPECT_GT( raw_nv12.size(), compressed_writer.tell() );
 
@@ -38,18 +38,19 @@ TEST( test_video_decomp, test_video_decomp )
 						 .set_encode( EncodeMethod::H264 );
 	Decompressor decompressor( decomp_opts );
 
-	std::vector<char> decompressed( raw_nv12.size() * 3, 0 );
-	SliceWriter decompressed_writer( decompressed.data(), decompressed.size() );
+	std::vector<char> decompressed( raw_nv12.size() * 2, 0 );
+	// SliceWriter decompressed_writer( decompressed.data(), decompressed.size() );
+	cufx::MemoryView1D<unsigned char> decompressed_writer( decompressed.data(), decompressed.size() );
 	decompressor.decompress( compressed_reader, decompressed_writer );
 
 	EXPECT_EQ( compressed_reader.tell(), compressed_writer.tell() );
-	EXPECT_EQ( decompressed_writer.tell(), raw_nv12.size() * 2 );
+	// EXPECT_EQ( decompressed_writer.tell(), raw_nv12.size() * 2 );
 
 	std::vector<int> diff( width * height, 0 );
 	int max_diff = 0;
 	for ( int i = 0; i != width * height; ++i ) {
 		diff[ i ] = (unsigned char)decompressed[ i ] - (unsigned char)raw_nv12[ i ];
-		EXPECT_NEAR( diff[ i ], 0, 20 );
+		ASSERT_NEAR( diff[ i ], 0, 20 );
 		max_diff = std::max( std::abs( diff[ i ] ), max_diff );
 	}
 	vm::println( "max_diff: {}", max_diff );

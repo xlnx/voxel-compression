@@ -126,9 +126,15 @@ struct DecompressorImpl final : vm::NoCopy, vm::NoMove
 	{
 		// assert(dst.size() == block_size)
 		auto dp_dst = dst.ptr();
+		auto dp_dst_end = dp_dst + dst.size();
 		vm::println( "is_device: {}", dst.device_id().is_device() );
 		auto on_picture_display = [&]( CUdeviceptr dp_src, unsigned src_pitch, CUstream stream ) {
-			vm::println( "picture display {} {}", (void *)dp_src, (void *)dp_dst );
+			// vm::println( "picture display {} {}", (void *)dp_src, (void *)dp_dst );
+
+			if ( dp_dst >= dp_dst_end ) {
+				dp_dst += ( luma_height + chroma_height ) * width;
+				return;
+			}
 
 			CUDA_MEMCPY2D m = {};
 			m.srcMemoryType = CU_MEMORYTYPE_DEVICE;
@@ -155,7 +161,9 @@ struct DecompressorImpl final : vm::NoCopy, vm::NoMove
 				  auto packet = get_packet( len );
 				  reader.read( packet, len );
 				  decode_and_advance( packet, len );
-				  //   dec->Decode( reinterpret_cast<uint8_t *>( packet ), len, nullptr, nullptr );
+			  }
+			  if ( dp_dst > dp_dst_end ) {
+				  vm::println( "truncated {} bytes", dp_dst - dp_dst_end );
 			  }
 			  while ( pending_frames.load() ) {}
 			  vm::println( "decoded {} frames, {} bytes", frame_len.size() - 1, dp_dst - dst.ptr() );
@@ -344,7 +352,7 @@ private:
 		CUdeviceptr dp_src = 0;
 		unsigned int src_pitch = 0;
 
-		vm::println( "pid = {}", pid );
+		// vm::println( "pid = {}", pid );
 		++pending_frames;
 		bool ready = true;
 		while ( !slots[ pid ].ready.compare_exchange_weak( ready, false ) ) {
