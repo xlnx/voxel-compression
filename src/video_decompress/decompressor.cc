@@ -6,7 +6,6 @@
 #include <cudafx/transfer.hpp>
 #include <cudafx/array.hpp>
 #include <VMUtils/with.hpp>
-#include <koi.hpp>
 #include <nvcodec/nvcuvid.h>
 #include <nvcodec/NvCodecUtils.h>
 // #include "nvdec/NvDecoder.h"
@@ -171,21 +170,18 @@ struct DecompressorImpl final : vm::NoCopy, vm::NoMove
 			  if ( dp_dst > dp_dst_end ) {
 				  vm::println( "truncated {} bytes", dp_dst - dp_dst_end );
 			  }
-			  while ( pending_frames.load() ) {}
+			  for ( auto &slot : slots ) {
+				  if ( auto old_dp = slot.wait() ) {
+					  NVDEC_API_CALL( cuvidUnmapVideoFrame( this->decoder, old_dp ) );
+				  }
+			  }
 			  vm::println( "decoded {} frames, {} bytes", frame_len.size() - 1, dp_dst - dst.ptr() );
 		  } );
 	}
 
 public:
 	DecompressorImpl( DecompressorOptions const &opts ) :
-	  io_queue_size( opts.io_queue_size ),
-	  pending_frames( 0 ),
-	  stop( false ),
-	  rt_thread( [this] {
-		  while ( !this->stop.load() ) {
-			  this->rt.run();
-		  }
-	  } )
+	  io_queue_size( opts.io_queue_size )
 	{
 		NVDEC_API_CALL( cuvidCtxLockCreate( &ctxlock, ctx ) );
 
@@ -206,8 +202,6 @@ public:
 	}
 	~DecompressorImpl()
 	{
-		stop.store( true );
-		rt_thread.join();
 		if ( decoder ) {
 			cuvidDestroyDecoder( decoder );
 		}
@@ -218,10 +212,9 @@ public:
 	}
 
 private:
-	struct Slot : vm::NoCopy, vm::NoMove
+	struct Slot
 	{
-		Slot() :
-		  ready( true )
+		Slot()
 		{
 			CUDA_DRVAPI_CALL( cuStreamCreate( &stream, CU_STREAM_NON_BLOCKING ) );
 		}
@@ -230,8 +223,25 @@ private:
 			cuStreamDestroy( stream );
 		}
 
+		void reset( CUdeviceptr new_dp )
+		{
+			dp = new_dp;
+		}
+		CUdeviceptr wait()
+		{
+			if ( dp ) {
+				cuStreamSynchronize( stream );
+				auto old_dp = dp;
+				dp = 0;
+				return old_dp;
+			}
+			return dp;
+		}
+		CUstream get() const { return stream; }
+
+	private:
+		CUdeviceptr dp = 0;
 		CUstream stream;
-		std::atomic<bool> ready;
 	};
 
 	void decode_and_advance( char *data, int len, uint32_t flags = 0 )
@@ -256,7 +266,7 @@ private:
 		vm::println( "io_queue_size = {}", io_queue_size );
 
 		CUDA_DRVAPI_CALL( cuCtxPushCurrent( ctx ) );
-		slots.reset( new Slot[ io_queue_size ] );
+		slots.resize( io_queue_size );
 		CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );
 
 		CUVIDDECODECAPS caps = {};
@@ -346,7 +356,7 @@ private:
 	int handle_picture_display( CUVIDPARSERDISPINFO *info )
 	{
 		const auto pid = info->picture_index;
-		auto stream = slots[ pid ].stream;
+		auto stream = slots[ pid ].get();
 
 		CUVIDPROCPARAMS params = {};
 		params.progressive_frame = info->progressive_frame;
@@ -359,10 +369,8 @@ private:
 		unsigned int src_pitch = 0;
 
 		// vm::println( "pid = {}", pid );
-		++pending_frames;
-		bool ready = true;
-		while ( !slots[ pid ].ready.compare_exchange_weak( ready, false ) ) {
-			ready = true;
+		if ( auto old_dp = slots[ pid ].wait() ) {
+			NVDEC_API_CALL( cuvidUnmapVideoFrame( this->decoder, old_dp ) );
 		}
 
 		NVDEC_API_CALL( cuvidMapVideoFrame( decoder, pid, &dp_src, &src_pitch, &params ) );
@@ -378,18 +386,9 @@ private:
 		cuCtxPushCurrent( ctx );  //ck
 		( *on_picture_display )( dp_src, src_pitch, stream );
 		cuCtxPopCurrent( nullptr );  //ck
-		rt.spawn(
-		  koi::future::poll_fn<void>(
-			[this, pid, dp_src, stream]( auto &_ ) -> koi::future::PollState {
-				switch ( auto res = cuStreamQuery( stream ) ) {
-				case CUDA_ERROR_NOT_READY: return koi::future::PollState::Pending;
-				default:
-					NVDEC_API_CALL( cuvidUnmapVideoFrame( this->decoder, dp_src ) );
-					this->slots[ pid ].ready.store( true );
-					--pending_frames;
-					return CUDA_SUCCESS == res ? koi::future::PollState::Ok : koi::future::PollState::Pruned;
-				}
-			} ) );
+
+		slots[ pid ].reset( dp_src );
+
 		return 1;
 	}
 
@@ -419,12 +418,7 @@ private:
 	int chroma_plains;
 
 	vm::With<std::function<void( CUdeviceptr, unsigned, CUstream )>> on_picture_display;
-	std::atomic<int> pending_frames;
-	std::unique_ptr<Slot[]> slots;
-
-	koi::runtime::current_thread::Runtime rt;
-	std::atomic<bool> stop;
-	std::thread rt_thread;
+	std::vector<Slot> slots;
 
 private:
 	cufx::drv::Context ctx = 0;
