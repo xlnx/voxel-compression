@@ -1,5 +1,7 @@
 # Voxel Codec
 
+[![CodeFactor](https://www.codefactor.io/repository/github/cad420/voxel-compression/badge)](https://www.codefactor.io/repository/github/cad420/voxel-compression)
+
 ## Compression:
 
 ```cpp
