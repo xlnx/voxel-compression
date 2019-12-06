@@ -167,15 +167,15 @@ struct DecompressorImpl final : vm::NoCopy, vm::NoMove
 				  reader.read( packet, len );
 				  decode_and_advance( packet, len );
 			  }
-			  if ( dp_dst > dp_dst_end ) {
-				  vm::println( "truncated {} bytes", dp_dst - dp_dst_end );
-			  }
+			  //   if ( dp_dst > dp_dst_end ) {
+			  // 	  vm::println( "truncated {} bytes", dp_dst - dp_dst_end );
+			  //   }
 			  for ( auto &slot : slots ) {
 				  if ( auto old_dp = slot.wait() ) {
 					  NVDEC_API_CALL( cuvidUnmapVideoFrame( this->decoder, old_dp ) );
 				  }
 			  }
-			  vm::println( "decoded {} frames, {} bytes", frame_len.size() - 1, dp_dst - dst.ptr() );
+			  //   vm::println( "decoded {} frames, {} bytes", frame_len.size() - 1, dp_dst - dst.ptr() );
 		  } );
 	}
 
