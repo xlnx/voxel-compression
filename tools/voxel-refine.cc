@@ -6,18 +6,39 @@
 #include <vocomp/video/compressor.hpp>
 #endif
 
+#ifdef WIN32
+#include <windows.h>
+unsigned long long get_system_memory()
+{
+	MEMORYSTATUSEX status;
+	status.dwLength = sizeof( status );
+	GlobalMemoryStatusEx( &status );
+	return status.ullTotalPhys;
+}
+#else
+#include <unistd.h>
+unsigned long long get_system_memory()
+{
+	long pages = sysconf( _SC_PHYS_PAGES );
+	long page_size = sysconf( _SC_PAGE_SIZE );
+	return pages * page_size;
+}
+#endif
+
 using namespace std;
 
 int main( int argc, char **argv )
 {
+	auto system_memory_gb = get_system_memory() / 1024 /*kb*/ / 1024 /*mb*/ / 1024 /*gb*/;
+
 	cmdline::parser a;
 	a.add<string>( "if", 'i', ".raw input filename", true );
 	a.add<int>( "x", 'x', "raw.x", true );
 	a.add<int>( "y", 'y', "raw.y", true );
 	a.add<int>( "z", 'z', "raw.z", true );
-	a.add<size_t>( "memlimit", 'm', "maximum memory limit in gb", false, 128 );
-	a.add<int>( "padding", 'p', "padding of the block, just support for 0, 1 or 2. the default value is 2", false, 2, cmdline::oneof<int>( 0, 1, 2 ) );
-	a.add<int>( "side", 's', "the side length of the block, which is represented in logarithm. The Default value is 6.", false, 6, cmdline::oneof<int>( 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 ) );
+	a.add<size_t>( "memlimit", 'm', "maximum memory limit in gb", false, system_memory_gb / 2 );
+	a.add<int>( "padding", 'p', "block padding", false, 2, cmdline::oneof<int>( 0, 1, 2 ) );
+	a.add<int>( "side", 's', "block size in log(voxel)", false, 6, cmdline::oneof<int>( 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 ) );
 	a.add<string>( "compression", 'c', "block compression method: h264/hevc/lz4/none", false, "h264", cmdline::oneof<string>( "h264", "hevc", "lz4", "none" ) );
 	a.add<string>( "device", 'd', "video compression device: default/cuda/graphics", false, "default", cmdline::oneof<string>( "default", "cuda", "graphics" ) );
 	a.add<string>( "of", 'o', "output filename", true );
