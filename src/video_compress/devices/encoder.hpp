@@ -4,6 +4,7 @@
 #include <VMUtils/concepts.hpp>
 #include <vocomp/io.hpp>
 #include <vocomp/video/compressor.hpp>
+#include <vocomp/unbounded_io.hpp>
 #include <nvcodec/NvEncoder.h>
 
 namespace vol
@@ -18,7 +19,7 @@ struct Encoder : vm::Dynamic, vm::NoCopy, vm::NoMove
 		params.encodeConfig = &cfg;
 	}
 
-	virtual void encode( Reader &reader, std::vector<char> &frames, std::vector<uint32_t> &frame_len ) = 0;
+	virtual void encode( Reader &reader, Writer &out, std::vector<uint32_t> &frame_len ) = 0;
 
 	std::unique_ptr<NvEncoder> _;
 	NV_ENC_CONFIG cfg = { NV_ENC_CONFIG_VER };

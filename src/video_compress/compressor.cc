@@ -1,4 +1,8 @@
+#include <numeric>
+#include <thread>
+#include <condition_variable>
 #include <vocomp/video/compressor.hpp>
+#include <koi.hpp>
 
 #ifdef VOCOMP_ENABLE_CUDA
 #include "devices/cuda_encoder.hpp"
@@ -14,10 +18,57 @@ namespace vol
 {
 VM_BEGIN_MODULE( video )
 
+using namespace std;
+
+struct LinkedReader : Reader
+{
+	LinkedReader( vector<vm::Box<Reader>> &&readers ) :
+	  _( std::move( readers ) )
+	{
+	}
+
+	void seek( size_t pos ) override
+	{
+	}
+	size_t tell() const override
+	{
+		return _[ idx ]->tell() +
+			   std::accumulate(
+				 _.begin(), _.begin() + idx, 0,
+				 []( size_t len, vm::Box<Reader> const &reader ) { return len + reader->size(); } );
+	}
+	size_t size() const override
+	{
+		return std::accumulate(
+		  _.begin(), _.end(), 0,
+		  []( size_t len, vm::Box<Reader> const &reader ) { return len + reader->size(); } );
+	}
+	size_t read( char *dst, size_t dlen ) override
+	{
+		size_t len = 0;
+		while ( true ) {
+			len += _[ idx ]->read( dst + len, dlen );
+			if ( len < dlen && idx < _.size() ) {
+				if ( ++idx == _.size() ) {
+					break;
+				}
+			} else {
+				break;
+			}
+		}
+		return len;
+	}
+
+private:
+	vector<vm::Box<Reader>> _;
+	size_t idx = 0;
+};
+
 struct CompressorImpl
 {
-	CompressorImpl( CompressOptions const &opts ) :
-	  opts( opts ),
+	CompressorImpl( Writer &out, CompressOptions const &opts ) :
+	  //   opts( opts ),
+	  out( out ),
 	  _( [&]() -> Encoder * {
 		  switch ( opts.device ) {
 		  case CompressDevice::Cuda:
@@ -36,7 +87,20 @@ struct CompressorImpl
 			  throw std::runtime_error( "no supported compression device" );
 #endif
 		  }
-	  }() )
+	  }() ),
+	  worker( [this, &out]() {
+		  while ( !should_stop ) {
+			  vector<vm::Box<Reader>> input_readers;
+			  {
+				  unique_lock<mutex> _( mut );
+				  cv.wait( _, [this] { return should_stop || !readers.empty(); } );
+				  if ( should_stop ) return;
+				  input_readers.swap( readers );
+			  }
+			  auto linked_reader = LinkedReader( std::move( input_readers ) );
+			  _->encode( linked_reader, out, frame_len );
+		  }
+	  } )
 	{
 		_->_->CreateDefaultEncoderParams( &_->params,
 										  *into_nv_encode( opts.encode_method ),
@@ -45,32 +109,38 @@ struct CompressorImpl
 		_->_->Allocate();
 	}
 
-	uint32_t transfer( Reader &reader, Writer &writer )
+	// std::future<>
+	void accept( vm::Box<Reader> &&reader )
 	{
-		thread_local std::vector<char> frames;
-		thread_local std::vector<uint32_t> frame_len;
-		frames.clear();
-		frame_len.clear();
+		unique_lock<mutex> _( mut );
+		readers.emplace_back( std::move( reader ) );
+		cv.notify_one();
+	}
 
-		_->encode( reader, frames, frame_len );
-
-		uint32_t nframes = frame_len.size();
-		writer.write( reinterpret_cast<char *>( &nframes ), sizeof( uint32_t ) );
-		writer.write( reinterpret_cast<char *>( frame_len.data() ),
-					  sizeof( uint32_t ) * nframes );
-		writer.write( frames.data(), frames.size() );
-
-		return nframes;
+	void wait()
+	{
+		if ( readers.size() ) {
+		}
 	}
 
 	~CompressorImpl()
 	{
 		_->_->Deallocate();
 		_->_->DestroyEncoder();
+		should_stop = true;
+		cv.notify_one();
+		worker.join();
 	}
 
-	CompressOptions opts;
+	// CompressOptions opts;
+	Writer &out;
 	vm::Box<Encoder> _;
+	vector<vm::Box<Reader>> readers;
+	vector<uint32_t> frame_len;
+	bool should_stop = false;
+	condition_variable cv;
+	mutex mut;
+	thread worker;
 };
 
 VM_EXPORT
@@ -86,8 +156,8 @@ VM_EXPORT
 	{
 	}
 
-	Compressor::Compressor( CompressOptions const &_ ) :
-	  _( new CompressorImpl( _ ) )
+	Compressor::Compressor( Writer & out, CompressOptions const &opts ) :
+	  _( new CompressorImpl( out, opts ) )
 	{
 	}
 
@@ -95,9 +165,13 @@ VM_EXPORT
 	{
 	}
 
-	void Compressor::transfer( Reader & reader, Writer & writer )
+	void Compressor::accept( vm::Box<Reader> && reader )
 	{
-		this->nframes = _->transfer( reader, writer );
+		_->accept( std::move( reader ) );
+	}
+	void Compressor::wait()
+	{
+		_->wait();
 	}
 }
 

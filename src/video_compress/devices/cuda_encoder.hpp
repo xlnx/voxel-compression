@@ -14,7 +14,7 @@ struct CudaEncoder : Encoder
 	{
 		_.reset( new NvEncoderCuda( ctx, width, height, into_nv_format( format ) ) );
 	}
-	void encode( Reader &reader, std::vector<char> &frames, std::vector<uint32_t> &frame_len ) override
+	void encode( Reader &reader, Writer &out, std::vector<uint32_t> &frame_len ) override
 	{
 		auto &_ = *this->_;
 
@@ -53,7 +53,7 @@ struct CudaEncoder : Encoder
 
 			for ( auto &packet : vPacket ) {
 				auto packet_begin = reinterpret_cast<char *>( packet.data() );
-				frames.insert( frames.end(), packet_begin, packet_begin + packet.size() );
+				out.write( packet_begin, packet.size() );
 				frame_len.emplace_back( packet.size() );
 			}
 

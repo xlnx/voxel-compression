@@ -58,12 +58,13 @@ VM_EXPORT
 		VM_DEFINE_ATTRIBUTE( PixelFormat, pixel_format ) = PixelFormat::IYUV;
 	};
 
-	struct Compressor final : Pipe, vm::NoCopy
+	struct Compressor final : vm::NoCopy
 	{
-		Compressor( CompressOptions const &_ = CompressOptions{} );
+		Compressor( Writer &out, CompressOptions const &_ = CompressOptions{} );
 		~Compressor();
 
-		void transfer( Reader &reader, Writer &writer ) override;
+		void accept( vm::Box<Reader> &&reader );
+		void wait();
 		uint32_t frame_count() const { return nframes; }
 
 	private:

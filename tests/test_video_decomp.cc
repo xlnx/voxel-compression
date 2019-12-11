@@ -18,7 +18,6 @@ TEST( test_video_decomp, test_video_decomp )
 	std::transform( raw_nv12.begin(), raw_nv12.end(), raw_nv12.begin(),
 					[&]( auto _ ) { return dist( rd ); } );
 	std::vector<char> compressed( raw_nv12.size(), 0 );
-	SliceReader raw_nv12_reader( raw_nv12.data(), raw_nv12.size() );
 	SliceWriter compressed_writer( compressed.data(), compressed.size() );
 
 	auto comp_opts = CompressOptions{}
@@ -27,8 +26,8 @@ TEST( test_video_decomp, test_video_decomp )
 					   .set_pixel_format( PixelFormat::IYUV )
 					   .set_width( width )
 					   .set_height( height );
-	Compressor compressor( comp_opts );
-	compressor.transfer( raw_nv12_reader, compressed_writer );
+	Compressor compressor( compressed_writer, comp_opts );
+	compressor.accept( vm::Box<Reader>( new SliceReader( raw_nv12.data(), raw_nv12.size() ) ) );
 	EXPECT_EQ( compressor.frame_count(), nframes );
 
 	EXPECT_GT( raw_nv12.size(), compressed_writer.tell() );
