@@ -1,3 +1,5 @@
+add_subdirectory(utils)
+
 if(VOCOMP_BUILD_VIDEO_COMPRESS)
   add_subdirectory(video_compress)
 endif()
