@@ -5,16 +5,16 @@ using namespace vol;
 using namespace vol::video;
 using namespace std;
 
-TEST( test_linked_reader, test_linked_reader )
+TEST( test_linked_reader, simple )
 {
 	string a = "123456789";
 	string b = "abcdef";
 	string c = "QWERTY";
-	vector<vm::Box<Reader>> readers;
-	readers.emplace_back( vm::Box<Reader>( new SliceReader( a.c_str(), a.length() ) ) );
-	readers.emplace_back( vm::Box<Reader>( new SliceReader( b.c_str(), b.length() ) ) );
-	readers.emplace_back( vm::Box<Reader>( new SliceReader( c.c_str(), c.length() ) ) );
-	LinkedReader reader( std::move( readers ) );
+	vector<vm::Arc<Reader>> readers;
+	readers.emplace_back( vm::Arc<Reader>( new SliceReader( a.c_str(), a.length() ) ) );
+	readers.emplace_back( vm::Arc<Reader>( new SliceReader( b.c_str(), b.length() ) ) );
+	readers.emplace_back( vm::Arc<Reader>( new SliceReader( c.c_str(), c.length() ) ) );
+	LinkedReader reader( readers );
 	string d;
 	d.resize( 16 );
 	EXPECT_EQ( 16, reader.read( const_cast<char *>( d.data() ), d.length() ) );

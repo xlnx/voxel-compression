@@ -12,8 +12,8 @@ VM_EXPORT
 {
 	struct LinkedReader : Reader
 	{
-		LinkedReader( vector<vm::Box<Reader>> &&readers ) :
-		  _( std::move( readers ) )
+		LinkedReader( vector<vm::Arc<Reader>> const &readers ) :
+		  _( readers )
 		{
 		}
 
@@ -39,13 +39,13 @@ VM_EXPORT
 			return _[ idx ]->tell() +
 				   accumulate(
 					 _.begin(), _.begin() + idx, 0,
-					 []( size_t len, vm::Box<Reader> const &reader ) { return len + reader->size(); } );
+					 []( size_t len, vm::Arc<Reader> const &reader ) { return len + reader->size(); } );
 		}
 		size_t size() const override
 		{
 			return accumulate(
 			  _.begin(), _.end(), 0,
-			  []( size_t len, vm::Box<Reader> const &reader ) { return len + reader->size(); } );
+			  []( size_t len, vm::Arc<Reader> const &reader ) { return len + reader->size(); } );
 		}
 		size_t read( char *dst, size_t dlen ) override
 		{
@@ -65,7 +65,7 @@ VM_EXPORT
 		}
 
 	private:
-		vector<vm::Box<Reader>> _;
+		vector<vm::Arc<Reader>> _;
 		size_t idx = 0;
 	};
 }

@@ -55,6 +55,7 @@ VM_EXPORT
 		VM_DEFINE_ATTRIBUTE( EncodePreset, encode_preset ) = EncodePreset::Default;
 		VM_DEFINE_ATTRIBUTE( unsigned, width ) = 1024;
 		VM_DEFINE_ATTRIBUTE( unsigned, height ) = 1024;
+		VM_DEFINE_ATTRIBUTE( unsigned, batch_frames ) = 64;
 		VM_DEFINE_ATTRIBUTE( PixelFormat, pixel_format ) = PixelFormat::IYUV;
 	};
 
@@ -63,8 +64,11 @@ VM_EXPORT
 		Compressor( Writer &out, CompressOptions const &_ = CompressOptions{} );
 		~Compressor();
 
-		void accept( vm::Box<Reader> &&reader );
+		void accept( vm::Arc<Reader> &&reader );
+		void flush( bool wait = false );
 		void wait();
+		uint32_t frame_size() const;
+		std::vector<uint32_t> const &frame_len() const;
 		uint32_t frame_count() const { return nframes; }
 
 	private:

@@ -59,7 +59,6 @@ struct CudaEncoder : Encoder
 
 			if ( nRead != nFrameSize ) break;
 		}
-		// vm::println( "Total frames encoded: {}", nFrame );
 	}
 
 	cufx::drv::Context ctx = 0;
