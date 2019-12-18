@@ -26,9 +26,16 @@ VM_EXPORT
 				   first_frame == other.first_frame && ( offset < other.offset );
 		}
 
+		bool operator==( BlockIndex const &other ) const
+		{
+			return first_frame == other.first_frame &&
+				   last_frame == other.last_frame &&
+				   offset == other.offset;
+		}
+
 		friend ostream &operator<<( ostream &os, BlockIndex const &_ )
 		{
-			vm::fprint( os, "{}", make_tuple( _.first_frame, _.last_frame, _.offset ) );
+			vm::fprint( os, "{{ f0: {}, f1: {}, offset:{} }}", _.first_frame, _.last_frame, _.offset );
 			return os;
 		}
 	};
@@ -46,6 +53,10 @@ VM_EXPORT
 			return x < other.x ||
 				   x == other.x && ( y < other.y ||
 									 y == other.y && z < other.z );
+		}
+		bool operator==( Idx const &other ) const
+		{
+			return x == other.x && y == other.y && z == other.z;
 		}
 
 		friend ostream &operator<<( ostream &os, Idx const &_ )

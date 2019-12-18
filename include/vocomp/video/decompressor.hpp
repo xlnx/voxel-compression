@@ -26,17 +26,14 @@ VM_EXPORT
 
 	using Buffer = cufx::MemoryView1D<unsigned char>;
 
-	struct BufferConsumer : vm::Dynamic
-	{
-		virtual void consume( Buffer const &buffer ) = 0;
-	};
-
 	struct Decompressor final : vm::NoCopy
 	{
 		Decompressor( DecompressorOptions const &opts = DecompressorOptions{} );
 		~Decompressor();
 
-		void decompress( Reader &reader, BufferConsumer &consumer, Buffer const &swap_buffer );
+		void decompress( Reader &reader,
+						 std::function<void( Buffer const & )> const &consumer,
+						 Buffer const &swap_buffer );
 
 	private:
 		vm::Box<DecompressorImpl> _;

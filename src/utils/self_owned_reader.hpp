@@ -2,9 +2,7 @@
 #include <numeric>
 #include <vocomp/io.hpp>
 
-namespace vol
-{
-VM_BEGIN_MODULE( video )
+VM_BEGIN_MODULE( vol )
 
 using namespace std;
 
@@ -28,5 +26,3 @@ VM_EXPORT
 }
 
 VM_END_MODULE()
-
-}  // namespace vol

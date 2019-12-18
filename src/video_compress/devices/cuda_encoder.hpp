@@ -53,8 +53,10 @@ struct CudaEncoder : Encoder
 
 			for ( auto &packet : vPacket ) {
 				auto packet_begin = reinterpret_cast<char *>( packet.data() );
+				uint32_t len = packet.size();
+				out.write( reinterpret_cast<char *>( &len ), sizeof( len ) );
 				out.write( packet_begin, packet.size() );
-				frame_len.emplace_back( packet.size() );
+				frame_len.emplace_back( sizeof( len ) + packet.size() );
 			}
 
 			if ( nRead != nFrameSize ) break;

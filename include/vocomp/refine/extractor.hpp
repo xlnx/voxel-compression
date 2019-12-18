@@ -18,7 +18,7 @@ VM_EXPORT
 							  Idx const &idx,
 							  std::size_t offset ) = 0;
 		virtual void wait() {}
-		virtual cufx::MemoryView1D<unsigned char> swap_buffer() const;
+		virtual cufx::MemoryView1D<unsigned char> swap_buffer() const = 0;
 	};
 
 	struct Extractor final : vm::NoCopy
@@ -28,17 +28,18 @@ VM_EXPORT
 		  decomp( opts )
 		{
 			reader.read_typed( header );
+			vm::println( "header: {}", header );
 			uint64_t meta_offset;
-			reader.seek( reader.size() - sizeof( meta_offset ) );
-			reader.read_typed( meta_offset );
-			reader.seek( meta_offset );
-			reader.read_typed( frame_offset );
-			reader.read_typed( block_idx );
+			content.seek( content.size() - sizeof( meta_offset ) );
+			content.read_typed( meta_offset );
+			content.seek( meta_offset );
+			content.read_typed( frame_offset );
+			content.read_typed( block_idx );
 			content.seek( 0 );
 		}
 		// block_idx ->
 		void batch_extract( std::vector<Idx> const &blocks,
-							std::shared_ptr<BlockConsumer> const &consumer );
+							BlockConsumer &consumer );
 
 		auto raw() const { return header.raw; }
 		auto dim() const { return header.dim; }
@@ -47,6 +48,7 @@ VM_EXPORT
 		auto block_size() const { return header.block_size; }
 		auto block_inner() const { return header.block_inner; }
 		auto padding() const { return header.padding; }
+		auto frame_size() const { return header.frame_size; }
 
 	private:
 		Header header;

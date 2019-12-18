@@ -58,42 +58,34 @@ int main( int argc, char **argv )
 	auto mem = a.get<size_t>( "memlimit" );
 
 	try {
-		size_t frame_len = 0;
-		shared_ptr<vol::Pipe> pipe;
+		auto opts = vol::refine::RefinerOptions{}
+					  .set_x( x )
+					  .set_y( y )
+					  .set_z( z )
+					  .set_log_block_size( log )
+					  .set_padding( padding )
+					  .set_suggest_mem_gb( mem )
+					  .set_input( input );
 
 		if ( comp == "h264" || comp == "hevc" ) {
 #ifdef VOCOMP_BUILD_VIDEO_COMPRESS
-			size_t block_size = 1 << log;
-			auto width = block_size * block_size / 2;
-			auto height = block_size;
-			if ( height < 64 ) {
-				width *= 64 / height;
-				height = 64;
-			}
-			while ( width > 4096 ) {
-				width = width >> 1;
-			}
-			while ( height > 4096 ) {
-				height = height >> 1;
-			}
-			frame_len = width * height * 3 / 2;
-
-			auto opts = vol::video::CompressOptions{}
-						  .set_encode_preset( vol::video::EncodePreset::Default )
-						  .set_width( width )
-						  .set_height( height )
-						  .set_pixel_format( vol::video::PixelFormat::NV12 );
+			auto &compress_opts = opts.compress_opts;
+			compress_opts = vol::video::CompressOptions{}
+							  .set_encode_preset( vol::video::EncodePreset::Default )
+							  .set_pixel_format( vol::video::PixelFormat::NV12 )
+							  .set_width( 1024 )
+							  .set_height( 1024 )
+							  .set_batch_frames( 16 );
 			if ( comp == "h264" ) {
-				opts.set_encode_method( vol::video::EncodeMethod::H264 );
+				compress_opts.set_encode_method( vol::video::EncodeMethod::H264 );
 			} else {
-				opts.set_encode_method( vol::video::EncodeMethod::HEVC );
+				compress_opts.set_encode_method( vol::video::EncodeMethod::HEVC );
 			}
 			if ( dev == "cuda" ) {
-				opts.set_device( vol::video::CompressDevice::Cuda );
+				compress_opts.set_device( vol::video::CompressDevice::Cuda );
 			} else if ( dev == "graphics" ) {
-				opts.set_device( vol::video::CompressDevice::Graphics );
+				compress_opts.set_device( vol::video::CompressDevice::Graphics );
 			}
-			pipe = make_shared<vol::video::Compressor>( opts );
 #else
 			throw runtime_error( "this tool is built without video compression support" );
 #endif
@@ -104,25 +96,12 @@ int main( int argc, char **argv )
 		}
 
 		vm::println( "using compression method: {}", comp );
-		output = vm::fmt( "{}.{}.comp", output, comp );
+		opts.set_output( vm::fmt( "{}.{}.comp", output, comp ) );
 
 		{
-			auto opts = vol::refine::RefinerOptions{}
-						  .set_x( x )
-						  .set_y( y )
-						  .set_z( z )
-						  .set_log_block_size( log )
-						  .set_padding( padding )
-						  .set_input( input )
-						  .set_output( output );
 			vol::refine::Refiner refiner( opts );
-			{
-				auto opts = vol::refine::ConvertOptions{}
-							  .set_frame_len( frame_len )
-							  .set_suggest_mem_gb( mem )
-							  .set_pipe( pipe );
-				refiner.convert( opts );
-			}
+
+			refiner.convert();
 
 			vm::println( "written to {}", output );
 		}

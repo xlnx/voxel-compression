@@ -15,4 +15,5 @@ target_include_directories(voxel_refine PUBLIC
 )
 vm_target_dependency(voxel_refine VMUtils PUBLIC)
 vm_target_dependency(voxel_refine vmcore PUBLIC)
+vm_target_dependency(voxel_refine video_compress PUBLIC)
 target_link_libraries(voxel_refine vmcore)

@@ -4,11 +4,6 @@ file(GLOB_RECURSE VIDEO_COMPRESS_SRC
   **/*.cu
 )
 
-vm_external_module(
-  GIT_REPOSITORY https://github.com/cad420/koi
-  GIT_TAG        master
-)
-
 if(VOCOMP_ENABLE_CUDA)
   vm_external_module(
     GIT_REPOSITORY https://github.com/cad420/cuda-fx
@@ -25,7 +20,6 @@ else()
   add_library(video_compress ${VIDEO_COMPRESS_SRC})
 endif()
 vm_target_dependency(video_compress VMUtils PUBLIC)
-vm_target_dependency(video_compress koi PRIVATE)
 
 if(MSVC)
   if(CMAKE_CL_64)

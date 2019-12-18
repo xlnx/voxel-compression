@@ -288,19 +288,11 @@ public:
 						.set_log_block_size( log_block_size )
 						.set_block_size( block_size )
 						.set_block_inner( block_inner )
-						.set_padding( padding );
-		header.raw
-		  .set_x( raw.x )
-		  .set_y( raw.y )
-		  .set_z( raw.z );
-		header.dim
-		  .set_x( dim.x )
-		  .set_y( dim.y )
-		  .set_z( dim.z );
-		header.adjusted
-		  .set_x( adjusted.x )
-		  .set_y( adjusted.y )
-		  .set_z( adjusted.z );
+						.set_padding( padding )
+						.set_raw( raw )
+						.set_dim( dim )
+						.set_adjusted( adjusted )
+						.set_frame_size( video_compressor.frame_size() );
 		StreamWriter writer( output, 0, sizeof( Header ) );
 		writer.write_typed( header );
 

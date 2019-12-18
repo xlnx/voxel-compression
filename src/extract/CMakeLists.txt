@@ -11,6 +11,7 @@ target_include_directories(voxel_extract PUBLIC
 )
 vm_target_dependency(voxel_extract VMUtils PUBLIC)
 vm_target_dependency(voxel_extract cudafx PUBLIC)
+vm_target_dependency(voxel_extract video_decompress PUBLIC)
 
 if(VOCOMP_BUILD_TESTS)
   add_subdirectory(tests)

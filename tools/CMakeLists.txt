@@ -9,6 +9,6 @@ if(VOCOMP_BUILD_REFINER)
 endif()
 
 if(VOCOMP_BUILD_EXTRACTOR)
-  add_executable(voxel-info voxel-info.cc)
+  cuda_add_executable(voxel-info voxel-info.cc)
   vm_target_dependency(voxel-info voxel_extract PRIVATE)
 endif()

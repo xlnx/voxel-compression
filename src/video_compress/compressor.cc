@@ -4,6 +4,7 @@
 #include <vocomp/video/compressor.hpp>
 #include "../utils/linked_reader.hpp"
 #include "../utils/padded_reader.hpp"
+#include "../utils/filter_reader.hpp"
 #include "../utils/self_owned_reader.hpp"
 
 #ifdef VOCOMP_ENABLE_CUDA
@@ -74,7 +75,8 @@ struct CompressorImpl
 					should_flush = false;
 				}
 				input_readers.swap( readers );
-				nframes_size = total_size / frame_size * frame_size;
+				auto nframes = total_size / frame_size;
+				nframes_size = nframes * frame_size;
 				size_t len = 0;
 				for ( auto &reader : input_readers ) {
 					len += reader->size() - reader->tell();
@@ -83,13 +85,19 @@ struct CompressorImpl
 					}
 				}
 				total_size -= nframes_size;
+				emitted_frames += nframes;
 			}
 			{
 				unique_lock<mutex> work_lk( work_mut );
 				if ( input_readers.size() ) {
 					auto linked_reader = LinkedReader( input_readers );
 					auto part_reader = PartReader( linked_reader, 0, nframes_size );
+					part_reader.seek( 0 );
+					vector<uint32_t> frame_len;
 					this->_->encode( part_reader, out, frame_len );
+					for ( auto &len : frame_len ) {
+						frame_offset.emplace_back( frame_offset.back() + len );
+					}
 				}
 				finish_cv.notify_one();
 			}
@@ -97,14 +105,20 @@ struct CompressorImpl
 	}
 
 	// std::future<>
-	void accept( vm::Arc<Reader> &&reader )
+	BlockIndex accept( vm::Arc<Reader> &&reader )
 	{
 		unique_lock<mutex> input_lk( input_mut );
+		BlockIndex idx;
+		idx.first_frame = emitted_frames + total_size / frame_size;
+		idx.offset = total_size % frame_size;
 		total_size += reader->size();
+		idx.last_frame = emitted_frames + ( total_size + frame_size - 1 ) / frame_size - 1;
 		readers.emplace_back( std::move( reader ) );
 		if ( total_size >= frame_size * nframe_batch ) {
+			// vm::println( "notified {} / {}", total_size, frame_size * nframe_batch );
 			input_cv.notify_one();
 		}
+		return idx;
 	}
 
 	// make data in all readers owned by this compressor
@@ -121,6 +135,7 @@ struct CompressorImpl
 		}
 		if ( wait ) {
 			should_flush = true;
+			// vm::println( "flushed {} / {}", total_size, frame_size * nframe_batch );
 			input_cv.notify_one();
 		}
 		input_mut.unlock();
@@ -136,23 +151,12 @@ struct CompressorImpl
 			auto nframes_padded = ( total_size + frame_size - 1 ) / frame_size;
 			auto padded_size = nframes_padded * frame_size;
 			if ( padded_size != total_size ) {
-				struct Padding : PaddedReader
-				{
-					Padding( size_t size ) :
-					  PaddedReader( [this]() -> Reader & {
-						  reader = unique_ptr<Reader>( new SliceReader( nullptr, 0 ) );
-						  return *reader;
-					  }(),
-									size ) {}
-
-				private:
-					unique_ptr<Reader> reader;
-				};
-				readers.emplace_back( new Padding( padded_size - total_size ) );
+				readers.emplace_back( new FilterReader( padded_size - total_size ) );
 				total_size = padded_size;
 			}
 		}
 		should_flush = true;
+		// vm::println( "wait" );
 		input_cv.notify_one();
 		unique_lock<mutex> work_lk( work_mut );
 		input_mut.unlock();
@@ -177,7 +181,8 @@ struct CompressorImpl
 	vector<vm::Arc<Reader>> readers;
 	size_t total_size = 0;
 	size_t frame_size, nframe_batch;
-	vector<uint32_t> frame_len;
+	size_t emitted_frames = 0;
+	vector<uint64_t> frame_offset = { 0 };
 	bool should_stop = false, should_flush = false;
 
 	mutex input_mut, work_mut;
@@ -207,9 +212,9 @@ VM_EXPORT
 	{
 	}
 
-	void Compressor::accept( vm::Arc<Reader> && reader )
+	BlockIndex Compressor::accept( vm::Arc<Reader> && reader )
 	{
-		_->accept( std::move( reader ) );
+		return _->accept( std::move( reader ) );
 	}
 	void Compressor::flush( bool wait )
 	{
@@ -223,9 +228,9 @@ VM_EXPORT
 	{
 		return _->frame_size;
 	}
-	vector<uint32_t> const &Compressor::frame_len() const
+	vector<uint64_t> const &Compressor::frame_offset() const
 	{
-		return _->frame_len;
+		return _->frame_offset;
 	}
 }
 

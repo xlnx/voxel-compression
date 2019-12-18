@@ -2,7 +2,6 @@
 #include "../padded_reader.hpp"
 
 using namespace vol;
-using namespace vol::video;
 using namespace std;
 
 TEST( test_padded_reader, simple )

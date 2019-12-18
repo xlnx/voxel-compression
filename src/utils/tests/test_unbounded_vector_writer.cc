@@ -2,7 +2,6 @@
 #include "../unbounded_vector_writer.hpp"
 
 using namespace vol;
-using namespace vol::video;
 using namespace std;
 
 TEST( test_unbounded_vector_writer, simple )

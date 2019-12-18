@@ -97,85 +97,63 @@ struct DecompressorImpl final : vm::NoCopy, vm::NoMove
 		return _.data();
 	}
 
-	void decompress( Reader &reader, Writer &writer )
+	void decompress( Reader &reader,
+					 std::function<void( Buffer const & )> const &consumer,
+					 Buffer const &swap_buffer )
 	{
-		// dec->on_picture_display.with(
-		//   on_picture_display,
-		//   [&] {
-		auto &frame_len = decode_header( reader );
-		for ( auto &len : frame_len ) {
-			uint8_t **ppframe;
-			int nframedec;
-
-			auto packet = get_packet( len );
-			reader.read( packet, len );
-
-			throw std::runtime_error( "unimplemented" );
-			// decode()
-			// dec->Decode( reinterpret_cast<uint8_t *>( packet ), len, &ppframe, &nframedec );
-
-			// for ( int i = 0; i < nframedec; i++ ) {
-			// 	writer.write( reinterpret_cast<char *>( ppframe[ i ] ), dec->GetFrameSize() );
-			// }
-		}
-		// } );
-	}
-
-	void decompress( Reader &reader, cufx::MemoryView1D<unsigned char> const &dst )
-	{
-		// assert(dst.size() == block_size)
-		auto dp_dst = dst.ptr();
-		auto dp_dst_end = dp_dst + dst.size();
-		// vm::println( "is_device: {}", dst.device_id().is_device() );
+		auto dp_swap = swap_buffer.ptr();
+		auto dp_swap_end = dp_swap + swap_buffer.size();
 		auto on_picture_display = [&]( CUdeviceptr dp_src, unsigned src_pitch, CUstream stream ) {
-			// vm::println( "picture display {} {}", (void *)dp_src, (void *)dp_dst );
-
-			if ( dp_dst >= dp_dst_end ) {
-				dp_dst += ( luma_height + chroma_height ) * width;
-				return;
+			if ( swap_buffer.size() < ( luma_height + chroma_height ) * width ) {
+				throw std::runtime_error( vm::fmt(
+				  "insufficient swap buffer size: {} < {}",
+				  swap_buffer.size(), ( luma_height + chroma_height ) * width ) );
 			}
 
 			CUDA_MEMCPY2D m = {};
 			m.srcMemoryType = CU_MEMORYTYPE_DEVICE;
 			m.srcPitch = src_pitch;
-			m.dstMemoryType = dst.device_id().is_device() ? CU_MEMORYTYPE_DEVICE : CU_MEMORYTYPE_HOST;
+			m.dstMemoryType = swap_buffer.device_id().is_device() ? CU_MEMORYTYPE_DEVICE : CU_MEMORYTYPE_HOST;
 			m.dstPitch = m.WidthInBytes = width;
 
-			m.srcDevice = dp_src;
-			m.dstDevice = ( CUdeviceptr )( m.dstHost = dp_dst );
-			m.Height = luma_height;
-			dp_dst += m.WidthInBytes * m.Height;
-			if ( dp_dst > dp_dst_end ) {
-				throw std::runtime_error( "buffer size not enough" );
+			if ( dp_swap + m.WidthInBytes * m.Height > dp_swap_end ) {
+				consumer( swap_buffer.slice( 0, dp_swap - swap_buffer.ptr() ) );
+				dp_swap = swap_buffer.ptr();
 			}
+			m.srcDevice = dp_src;
+			m.dstDevice = ( CUdeviceptr )( m.dstHost = dp_swap );
+			m.Height = luma_height;
+			dp_swap += m.WidthInBytes * m.Height;
 			CUDA_DRVAPI_CALL( cuMemcpy2DAsync( &m, stream ) );  //ck
 
-			m.srcDevice = dp_src + m.srcPitch * surface_height;
-			m.dstDevice = ( CUdeviceptr )( m.dstHost = dp_dst );
-			m.Height = chroma_height;
-			dp_dst += m.WidthInBytes * m.Height;
-			if ( dp_dst > dp_dst_end ) {
-				throw std::runtime_error( "buffer size not enough" );
+			if ( dp_swap + m.WidthInBytes * m.Height > dp_swap_end ) {
+				consumer( swap_buffer.slice( 0, dp_swap - swap_buffer.ptr() ) );
+				dp_swap = swap_buffer.ptr();
 			}
+			m.srcDevice = dp_src + m.srcPitch * surface_height;
+			m.dstDevice = ( CUdeviceptr )( m.dstHost = dp_swap );
+			m.Height = chroma_height;
+			dp_swap += m.WidthInBytes * m.Height;
 			CUDA_DRVAPI_CALL( cuMemcpy2DAsync( &m, stream ) );  //ck
 		};
 		this->on_picture_display.with(
 		  on_picture_display, [&] {
-			  auto &frame_len = decode_header( reader );
-			  for ( auto &len : frame_len ) {
-				  auto packet = get_packet( len );
-				  reader.read( packet, len );
-				  decode_and_advance( packet, len );
+			  uint32_t frame_len;
+			  while ( reader.read( reinterpret_cast<char *>( &frame_len ), sizeof( uint32_t ) ) ) {
+				  auto packet = get_packet( frame_len );
+				  reader.read( packet, frame_len );
+				  decode_and_advance( packet, frame_len );
 			  }
-			  //   if ( dp_dst > dp_dst_end ) {
-			  // 	  vm::println( "truncated {} bytes", dp_dst - dp_dst_end );
-			  //   }
+			  decode_and_advance( nullptr, 0 );
 			  for ( auto &slot : slots ) {
 				  if ( auto old_dp = slot.wait() ) {
+					  //   vm::println( "unmap {}", old_dp );
 					  NVDEC_API_CALL( cuvidUnmapVideoFrame( this->decoder, old_dp ) );
 				  }
 			  }
-			  //   vm::println( "decoded {} frames, {} bytes", frame_len.size() - 1, dp_dst - dst.ptr() );
+			  if ( dp_swap > swap_buffer.ptr() ) {
+				  consumer( swap_buffer.slice( 0, dp_swap - swap_buffer.ptr() ) );
+			  }
 		  } );
 	}
 
@@ -370,10 +348,12 @@ private:
 
 		// vm::println( "pid = {}", pid );
 		if ( auto old_dp = slots[ pid ].wait() ) {
+			// vm::println( "unmap {}", old_dp );
 			NVDEC_API_CALL( cuvidUnmapVideoFrame( this->decoder, old_dp ) );
 		}
 
 		NVDEC_API_CALL( cuvidMapVideoFrame( decoder, pid, &dp_src, &src_pitch, &params ) );
+		// vm::println( "map {}", dp_src );
 
 		CUVIDGETDECODESTATUS stat = {};
 		CUresult result = cuvidGetDecodeStatus( decoder, pid, &stat );
@@ -437,14 +417,11 @@ VM_EXPORT
 	Decompressor::~Decompressor()
 	{
 	}
-	void Decompressor::decompress( Reader & reader, Writer & writer )
+	void Decompressor::decompress( Reader & reader,
+								   std::function<void( Buffer const & )> const &consumer,
+								   Buffer const &swap_buffer )
 	{
-		_->decompress( reader, writer );
-	}
-
-	void Decompressor::decompress( Reader & reader, cufx::MemoryView1D<unsigned char> const &dst )
-	{
-		return _->decompress( reader, dst );
+		_->decompress( reader, consumer, swap_buffer );
 	}
 }
 

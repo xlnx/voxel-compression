@@ -3,9 +3,7 @@
 #include <vocomp/io.hpp>
 #include <vocomp/unbounded_io.hpp>
 
-namespace vol
-{
-VM_BEGIN_MODULE( video )
+VM_BEGIN_MODULE( vol )
 
 using namespace std;
 
@@ -49,5 +47,3 @@ VM_EXPORT
 }
 
 VM_END_MODULE()
-
-}  // namespace vol

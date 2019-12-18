@@ -2,7 +2,6 @@
 #include "../linked_reader.hpp"
 
 using namespace vol;
-using namespace vol::video;
 using namespace std;
 
 TEST( test_linked_reader, simple )
