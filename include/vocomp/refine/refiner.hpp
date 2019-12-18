@@ -5,7 +5,8 @@
 #include <atomic>
 #include <ciso646>
 #include <VMUtils/nonnull.hpp>
-#include "internal/header.hpp"
+#include <vocomp/video/compressor.hpp>
+#include "header.hpp"
 
 namespace vol
 {
@@ -24,20 +25,15 @@ VM_EXPORT
 		VM_DEFINE_ATTRIBUTE( size_t, padding );
 		VM_DEFINE_ATTRIBUTE( string, input );
 		VM_DEFINE_ATTRIBUTE( string, output );
-	};
-
-	struct ConvertOptions
-	{
-		VM_DEFINE_ATTRIBUTE(std::shared_ptr<vol::Pipe>, pipe);
-		VM_DEFINE_ATTRIBUTE(size_t, suggest_mem_gb) = 128;
-		VM_DEFINE_ATTRIBUTE(size_t, frame_len) = 0;
+		VM_DEFINE_ATTRIBUTE( video::CompressOptions, compress_opts );
+		VM_DEFINE_ATTRIBUTE( size_t, suggest_mem_gb ) = 128;
 	};
 
 	struct Refiner final : vm::NoCopy
 	{
 		Refiner( RefinerOptions const &opts );
 		~Refiner();
-		bool convert( ConvertOptions const &opts = ConvertOptions{} );
+		bool convert();
 
 	private:
 		vm::Box<RefinerImpl> _;

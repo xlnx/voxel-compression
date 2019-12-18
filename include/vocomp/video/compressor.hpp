@@ -3,8 +3,9 @@
 #include <VMUtils/nonnull.hpp>
 #include <VMUtils/concepts.hpp>
 #include <VMUtils/attributes.hpp>
+#include <vocomp/index.hpp>
+#include <vocomp/io.hpp>
 #include "method.hpp"
-#include "../io.hpp"
 
 namespace vol
 {
@@ -64,16 +65,15 @@ VM_EXPORT
 		Compressor( Writer &out, CompressOptions const &_ = CompressOptions{} );
 		~Compressor();
 
-		void accept( vm::Arc<Reader> &&reader );
+		BlockIndex accept( vm::Arc<Reader> &&reader );
 		void flush( bool wait = false );
 		void wait();
 		uint32_t frame_size() const;
-		std::vector<uint32_t> const &frame_len() const;
-		uint32_t frame_count() const { return nframes; }
+		std::vector<uint64_t> const &frame_offset() const;
+		uint32_t frame_count() const { return frame_offset().size() - 1; }
 
 	private:
 		vm::Box<CompressorImpl> _;
-		uint32_t nframes = 0;
 	};
 }
 

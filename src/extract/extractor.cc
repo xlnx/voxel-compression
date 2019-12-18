@@ -1,5 +1,6 @@
+#include <algorithm>
 #include <vocomp/refine/extractor.hpp>
-#include <vocomp/index/decompressor.hpp>
+#include "../utils/linked_reader.hpp"
 
 namespace vol
 {
@@ -7,53 +8,33 @@ VM_BEGIN_MODULE( refine )
 
 using namespace std;
 
-struct ExtractorImpl final : vm::NoCopy, vm::NoMove
-{
-	ExtractorImpl( Reader &reader ) :
-	  content( reader, sizeof( Header ), reader.size() - sizeof( Header ) ),
-	  decomp( content )
-	{
-	}
-	PartReader extract( index::Idx idx )
-	{
-		return decomp.get( idx );
-	}
-
-	PartReader content;
-	index::Decompressor<> decomp;
-};
-
 VM_EXPORT
 {
-	Extractor::Extractor( Reader & reader ) :
-	  _( new ExtractorImpl( reader ) ),
-	  _index( _->decomp.get_index() )
+	void Extractor::batch_extract( vector<Idx> const &blocks,
+								   shared_ptr<BlockConsumer> const &consumer )
 	{
-		PartReader header_reader( reader, 0, sizeof( Header ) );
-		auto header = Header::read_from( header_reader );
-		_raw
-		  .set_x( header.raw.x )
-		  .set_y( header.raw.y )
-		  .set_z( header.raw.z );
-		_dim
-		  .set_x( header.dim.x )
-		  .set_y( header.dim.y )
-		  .set_z( header.dim.z );
-		_adjusted
-		  .set_x( header.adjusted.x )
-		  .set_y( header.adjusted.y )
-		  .set_z( header.adjusted.z );
-		_log_block_size = header.log_block_size;
-		_block_size = header.block_size;
-		_block_inner = header.block_inner;
-		_padding = header.padding;
-	}
-	Extractor::~Extractor()
-	{
-	}
-	PartReader Extractor::extract( index::Idx idx )
-	{
-		return _->extract( idx );
+		if ( !blocks.size() ) return;
+		auto swap_buffer = consumer->swap_buffer();
+		vector<map<Idx, BlockIndex>::const_iterator> sorted_blocks;
+		std::transform( blocks.begin(), blocks.end(), sorted_blocks.begin(),
+						[this]( Idx const &idx ) { return block_idx.find( idx ); } );
+		std::sort( sorted_blocks.begin(), sorted_blocks.end(),
+				   [this]( auto const &x, auto const &y ) { return x->second < y->second; } );
+		vector<vm::Arc<Reader>> readers;
+		int prev = 0;
+		for ( int i = 1; i < sorted_blocks.size(); ++i ) {
+			if ( sorted_blocks[ i ]->second.first_frame >
+				 sorted_blocks[ i - 1 ]->second.last_frame ) {
+				auto beg = frame_offset[ sorted_blocks[ prev ]->second.first_frame ];
+				auto end = frame_offset[ sorted_blocks[ i - 1 ]->second.last_frame + 1 ];
+				readers.emplace_back( vm::Arc<Reader>( new PartReader( content, beg, end ) ) );
+			}
+		}
+		auto beg = frame_offset[ sorted_blocks[ prev ]->second.first_frame ];
+		auto end = frame_offset[ sorted_blocks.back()->second.last_frame + 1 ];
+		readers.emplace_back( vm::Arc<Reader>( new PartReader( content, beg, end ) ) );
+		auto linked_reader = LinkedReader( readers );
+		// decomp.decompress( linked_reader, buffer_consumer, swap_buffer );
 	}
 }
 

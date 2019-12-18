@@ -2,9 +2,7 @@
 #include <numeric>
 #include <vocomp/io.hpp>
 
-namespace vol
-{
-VM_BEGIN_MODULE( video )
+VM_BEGIN_MODULE( vol )
 
 using namespace std;
 
@@ -25,9 +23,6 @@ VM_EXPORT
 				if ( len + size > pos ) {
 					idx = i;
 					_[ idx ]->seek( pos - len );
-					for ( int j = i + 1; j < _.size(); ++j ) {
-						_[ j ]->seek( 0 );
-					}
 					return;
 				}
 				len += size;
@@ -57,6 +52,7 @@ VM_EXPORT
 					if ( ++idx == _.size() ) {
 						break;
 					}
+					_[ idx ]->seek( 0 );
 				} else {
 					break;
 				}
@@ -71,5 +67,3 @@ VM_EXPORT
 }
 
 VM_END_MODULE()
-
-}  // namespace vol

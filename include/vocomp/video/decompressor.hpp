@@ -24,17 +24,19 @@ VM_EXPORT
 		VM_DEFINE_ATTRIBUTE( unsigned, io_queue_size ) = 4;
 	};
 
-	struct Decompressor final : Pipe, vm::NoCopy
+	using Buffer = cufx::MemoryView1D<unsigned char>;
+
+	struct BufferConsumer : vm::Dynamic
+	{
+		virtual void consume( Buffer const &buffer ) = 0;
+	};
+
+	struct Decompressor final : vm::NoCopy
 	{
 		Decompressor( DecompressorOptions const &opts = DecompressorOptions{} );
 		~Decompressor();
 
-		void decompress( Reader &reader, Writer &writer );
-		void decompress( Reader &reader, cufx::MemoryView1D<unsigned char> const &swap );
-		void transfer( Reader &reader, Writer &writer ) override
-		{
-			decompress( reader, writer );
-		}
+		void decompress( Reader &reader, BufferConsumer &consumer, Buffer const &swap_buffer );
 
 	private:
 		vm::Box<DecompressorImpl> _;

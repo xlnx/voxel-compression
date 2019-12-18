@@ -2,6 +2,8 @@
 
 #include <functional>
 #include <fstream>
+#include <vector>
+#include <map>
 #include <cstring>
 #include <algorithm>
 
@@ -25,11 +27,60 @@ VM_EXPORT
 	struct Reader : RandomIO
 	{
 		virtual size_t read( char *dst, size_t len ) = 0;
+		template <typename T, typename = typename std::enable_if<std::is_trivially_copyable<T>::value>::type>
+		size_t read_typed( T &dst )
+		{
+			return read( reinterpret_cast<char *>( &dst ), sizeof( T ) );
+		}
+		template <typename T>
+		size_t read_typed( std::vector<T> &vec )
+		{
+			uint64_t len;
+			auto nread = read_typed( len );
+			vec.resize( len );
+			nread += read( reinterpret_cast<char *>( vec.data() ), sizeof( T ) * len );
+			return nread;
+		}
+		template <typename K, typename V>
+		size_t read_typed( std::map<K, V> &map )
+		{
+			uint64_t len;
+			auto nread = read_typed( len );
+			for ( uint64_t i = 0; i != len; ++i ) {
+				std::pair<K, V> entry;
+				nread += read_typed( entry.first );
+				nread += read_typed( entry.second );
+				map.insert( entry );
+			}
+			return nread;
+		}
 	};
 
 	struct Writer : RandomIO
 	{
 		virtual void write( char const *src, size_t len ) = 0;
+		template <typename T, typename = typename std::enable_if<std::is_trivially_copyable<T>::value>::type>
+		void write_typed( T const &src )
+		{
+			write( reinterpret_cast<char const *>( &src ), sizeof( T ) );
+		}
+		template <typename T>
+		void write_typed( std::vector<T> const &vec )
+		{
+			uint64_t len = vec.size();
+			write_typed( len );
+			write( reinterpret_cast<char const *>( vec.data() ), sizeof( T ) * len );
+		}
+		template <typename K, typename V>
+		void write_typed( std::map<K, V> &map )
+		{
+			uint64_t len = map.size();
+			write_typed( len );
+			for ( auto &entry : map ) {
+				write_typed( entry.first );
+				write_typed( entry.second );
+			}
+		}
 	};
 
 	struct PartReader : Reader
@@ -39,7 +90,6 @@ VM_EXPORT
 		  offset( offset ),
 		  len( len )
 		{
-			_.seek( offset );
 		}
 
 		void seek( size_t pos ) override

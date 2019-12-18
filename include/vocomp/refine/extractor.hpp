@@ -1,44 +1,59 @@
 #pragma once
 
-#include <vocomp/index/index.hpp>
+#include <vocomp/index.hpp>
+#include <vocomp/video/decompressor.hpp>
 #include <VMUtils/nonnull.hpp>
-#include "internal/header.hpp"
+#include <cudafx/memory.hpp>
+#include "header.hpp"
 
 namespace vol
 {
 VM_BEGIN_MODULE( refine )
 
-struct ExtractorImpl;
-
 VM_EXPORT
 {
+	struct BlockConsumer : vm::NoCopy
+	{
+		virtual void consume( cufx::MemoryView1D<unsigned char> const &data,
+							  Idx const &idx,
+							  std::size_t offset ) = 0;
+		virtual void wait() {}
+		virtual cufx::MemoryView1D<unsigned char> swap_buffer() const;
+	};
+
 	struct Extractor final : vm::NoCopy
 	{
-		Extractor( Reader &reader );
-		~Extractor();
-		PartReader extract( index::Idx idx );
+		Extractor( Reader &reader, video::DecompressorOptions const &opts ) :
+		  content( reader, sizeof( Header ), reader.size() - sizeof( Header ) ),
+		  decomp( opts )
+		{
+			reader.read_typed( header );
+			uint64_t meta_offset;
+			reader.seek( reader.size() - sizeof( meta_offset ) );
+			reader.read_typed( meta_offset );
+			reader.seek( meta_offset );
+			reader.read_typed( frame_offset );
+			reader.read_typed( block_idx );
+			content.seek( 0 );
+		}
+		// block_idx ->
+		void batch_extract( std::vector<Idx> const &blocks,
+							std::shared_ptr<BlockConsumer> const &consumer );
 
-		auto raw() const { return _raw; }
-		auto dim() const { return _dim; }
-		auto adjusted() const { return _adjusted; }
-		auto log_block_size() const { return _log_block_size; }
-		auto block_size() const { return _block_size; }
-		auto block_inner() const { return _block_inner; }
-		auto padding() const { return _padding; }
-		auto &index() const { return _index; }
+		auto raw() const { return header.raw; }
+		auto dim() const { return header.dim; }
+		auto adjusted() const { return header.adjusted; }
+		auto log_block_size() const { return header.log_block_size; }
+		auto block_size() const { return header.block_size; }
+		auto block_inner() const { return header.block_inner; }
+		auto padding() const { return header.padding; }
 
 	private:
-		vm::Box<ExtractorImpl> _;
-
-	private:
-		index::Idx _raw;
-		index::Idx _dim;
-		index::Idx _adjusted;
-		size_t _log_block_size;
-		size_t _block_size;
-		size_t _block_inner;
-		size_t _padding;
-		std::map<index::Idx, index::__inner__::BlockIndex> &_index;
+		Header header;
+		PartReader content;
+		vector<uint64_t> frame_offset;
+		map<Idx, BlockIndex> block_idx;
+		video::Decompressor decomp;
 	};
 }
 
