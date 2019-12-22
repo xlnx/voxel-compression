@@ -1,16 +1,15 @@
-#include <vocomp/refine/refiner.hpp>
+#include <vocomp/refiner.hpp>
 
 #include <thread>
 #include <VMat/geometry.h>
 #include <VMat/numeric.h>
 #include <VMUtils/timer.hpp>
 #include <VMFoundation/rawreader.h>
-#include <vocomp/index.hpp>
-#include <vocomp/unbounded_io.hpp>
+#include <vocomp/utils/common.hpp>
+#include <vocomp/utils/unbounded_io.hpp>
+#include "video_compressor.hpp"
 
-namespace vol
-{
-VM_BEGIN_MODULE( refine )
+VM_BEGIN_MODULE( vol )
 
 using namespace vm;
 using namespace std;
@@ -33,7 +32,7 @@ private:
 	ofstream output;
 
 	vol::UnboundedStreamWriter body_writer;
-	video::Compressor video_compressor;
+	VideoCompressor video_VideoCompressor;
 
 	vector<char> read_buffer, write_buffer;
 	atomic<size_t> read_blocks = 0;
@@ -64,7 +63,7 @@ public:
 	  input( opts.input, Size3( raw.x, raw.y, raw.z ), sizeof( Voxel ) ),
 	  output( opts.output, ios::binary ),
 	  body_writer( output, sizeof( Header ) ),
-	  video_compressor( body_writer, opts.compress_opts )
+	  video_VideoCompressor( body_writer, opts.compress_opts )
 	{
 		if ( padding < 0 || padding > 2 ) {
 			throw runtime_error( "unsupported padding" );
@@ -242,12 +241,12 @@ public:
 								   .set_x( blkid % dim.x )
 								   .set_y( blkid / dim.x % dim.y )
 								   .set_z( blkid / ( dim.x * dim.y ) % dim.z );
-				block_idx[ idx ] = video_compressor.accept(
+				block_idx[ idx ] = video_VideoCompressor.accept(
 				  vm::Arc<Reader>( new SliceReader( dst, nvoxels_per_block ) ) );
 			}
 		}
-		video_compressor.flush( true );
-		// vm::println( "{}", video_compressor.frame_len() );
+		video_VideoCompressor.flush( true );
+		// vm::println( "{}", video_VideoCompressor.frame_len() );
 		vm::println( "handled {} blocks", read_blocks );
 	}
 
@@ -273,14 +272,14 @@ public:
 					}
 				}
 			}
-			video_compressor.wait();
+			video_VideoCompressor.wait();
 		}
 
 		vector<char>{}.swap( read_buffer );
 		vector<char>{}.swap( write_buffer );
 
 		uint64_t meta_offset = body_writer.tell();
-		body_writer.write_typed( video_compressor.frame_offset() );
+		body_writer.write_typed( video_VideoCompressor.frame_offset() );
 		body_writer.write_typed( block_idx );
 		body_writer.write_typed( meta_offset );
 
@@ -292,7 +291,8 @@ public:
 						.set_raw( raw )
 						.set_dim( dim )
 						.set_adjusted( adjusted )
-						.set_frame_size( video_compressor.frame_size() );
+						.set_frame_size( video_VideoCompressor.frame_size() )
+						.set_encode_method();
 		StreamWriter writer( output, 0, sizeof( Header ) );
 		writer.write_typed( header );
 
@@ -316,5 +316,3 @@ VM_EXPORT
 }
 
 VM_END_MODULE()
-
-}  // namespace vol

@@ -1,10 +1,7 @@
 #include <iostream>
 #include <string>
 #include <VMUtils/cmdline.hpp>
-#include <vocomp/refine/refiner.hpp>
-#ifdef VOCOMP_BUILD_VIDEO_COMPRESS
-#include <vocomp/video/compressor.hpp>
-#endif
+#include <vocomp/refiner.hpp>
 
 #ifdef WIN32
 #include <windows.h>
@@ -26,6 +23,7 @@ unsigned long long get_system_memory()
 #endif
 
 using namespace std;
+using namespace vol;
 
 int main( int argc, char **argv )
 {
@@ -58,7 +56,7 @@ int main( int argc, char **argv )
 	auto mem = a.get<size_t>( "memlimit" );
 
 	try {
-		auto opts = vol::refine::RefinerOptions{}
+		auto opts = RefinerOptions{}
 					  .set_x( x )
 					  .set_y( y )
 					  .set_z( z )
@@ -68,27 +66,23 @@ int main( int argc, char **argv )
 					  .set_input( input );
 
 		if ( comp == "h264" || comp == "hevc" ) {
-#ifdef VOCOMP_BUILD_VIDEO_COMPRESS
 			auto &compress_opts = opts.compress_opts;
-			compress_opts = vol::video::CompressOptions{}
-							  .set_encode_preset( vol::video::EncodePreset::Default )
-							  .set_pixel_format( vol::video::PixelFormat::NV12 )
+			compress_opts = VideoCompressOptions{}
+							  .set_encode_preset( EncodePreset::Default )
+							  .set_pixel_format( PixelFormat::NV12 )
 							  .set_width( 1024 )
 							  .set_height( 1024 )
 							  .set_batch_frames( 16 );
 			if ( comp == "h264" ) {
-				compress_opts.set_encode_method( vol::video::EncodeMethod::H264 );
+				compress_opts.set_encode_method( EncodeMethod::H264 );
 			} else {
-				compress_opts.set_encode_method( vol::video::EncodeMethod::HEVC );
+				compress_opts.set_encode_method( EncodeMethod::HEVC );
 			}
 			if ( dev == "cuda" ) {
-				compress_opts.set_device( vol::video::CompressDevice::Cuda );
+				compress_opts.set_device( CompressDevice::Cuda );
 			} else if ( dev == "graphics" ) {
-				compress_opts.set_device( vol::video::CompressDevice::Graphics );
+				compress_opts.set_device( CompressDevice::Graphics );
 			}
-#else
-			throw runtime_error( "this tool is built without video compression support" );
-#endif
 		} else if ( comp == "lz4" ) {
 			throw runtime_error( "unimplemented lz4" );
 		} else if ( comp != "none" ) {
@@ -99,7 +93,7 @@ int main( int argc, char **argv )
 		opts.set_output( vm::fmt( "{}.{}.comp", output, comp ) );
 
 		{
-			vol::refine::Refiner refiner( opts );
+			Refiner refiner( opts );
 
 			refiner.convert();
 

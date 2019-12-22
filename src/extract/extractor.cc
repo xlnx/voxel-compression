@@ -1,10 +1,8 @@
 #include <algorithm>
-#include <vocomp/refine/extractor.hpp>
-#include "../utils/linked_reader.hpp"
+#include <vocomp/extractor.hpp>
+#include <vocomp/utils/linked_reader.hpp>
 
-namespace vol
-{
-VM_BEGIN_MODULE( refine )
+VM_BEGIN_MODULE( vol )
 
 using namespace std;
 
@@ -51,7 +49,7 @@ VM_EXPORT
 		int64_t block_bytes = header.block_size * header.block_size * header.block_size;
 		decomp.decompress(
 		  linked_reader,
-		  [&]( video::Buffer const &buffer ) {
+		  [&]( Buffer const &buffer ) {
 			  while ( i < linked_block_offsets.size() ) {
 				  int64_t inbuffer_offset = linked_block_offsets[ i ] + curr_block_offset - linked_read_pos;
 				  // buffer contains current block
@@ -82,5 +80,3 @@ VM_EXPORT
 }
 
 VM_END_MODULE()
-
-}  // namespace vol
