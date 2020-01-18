@@ -18,11 +18,9 @@ struct VideoCompressorImpl
 	  //   opts( opts ),
 	  out( out )
 	{
-		static shared_ptr<NvEncoderWrapper> encoder;
-		if ( !encoder ) {
-			encoder.reset( new NvEncoderWrapper( opts ) );
-		}
-		_ = encoder;
+		static mutex mut;
+		unique_lock<mutex> lk( mut );
+		_.reset( new NvEncoderWrapper( opts ) );
 		nframe_batch = opts.batch_frames;
 		frame_size = _->_->GetFrameSize();
 		worker.reset( new thread( [this] { work_loop(); } ) );

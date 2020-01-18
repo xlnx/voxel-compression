@@ -47,29 +47,49 @@ inline GUID const *into_nv_preset( EncodePreset preset )
 	}
 }
 
+std::unique_ptr<NvEncoder> NvEncoderWrapper::_;
+cufx::drv::Context NvEncoderWrapper::ctx = 0;
+
 NvEncoderWrapper::NvEncoderWrapper( VideoCompressOptions const &opts )
 {
-	// static std::shared_ptr<NvEncoder> encoder;
-	// if ( !encoder ) {
-	cfg.profileGUID = NV_ENC_H264_PROFILE_BASELINE_GUID;
-	params.encodeConfig = &cfg;
-	_.reset( new NvEncoderCuda( ctx,
-								opts.width,
-								opts.height,
-								into_nv_format( opts.pixel_format ) ) );
-	_->CreateDefaultEncoderParams( &params,
-								   *into_nv_encode( opts.encode_method ),
-								   *into_nv_preset( opts.encode_preset ) );
-	_->CreateEncoder( &params );
-	_->Allocate();
-	// }
-	// _ = encoder;
+	static NV_ENC_INITIALIZE_PARAMS params = { NV_ENC_INITIALIZE_PARAMS_VER };
+	static NV_ENC_CONFIG cfg = { NV_ENC_CONFIG_VER };
+
+	if ( _ == nullptr ) {
+		cfg.profileGUID = NV_ENC_H264_PROFILE_BASELINE_GUID;
+		params.encodeConfig = &cfg;
+
+		_.reset( new NvEncoderCuda( ctx,
+									opts.width,
+									opts.height,
+									into_nv_format( opts.pixel_format ) ) );
+		_->CreateDefaultEncoderParams( &params,
+									   *into_nv_encode( opts.encode_method ),
+									   *into_nv_preset( opts.encode_preset ) );
+		_->CreateEncoder( &params );
+		_->Allocate();
+	} else {
+		_->m_eBufferFormat = into_nv_format( opts.pixel_format );
+		_->m_nWidth = opts.width;
+		_->m_nHeight = opts.height;
+		_->CreateDefaultEncoderParams( &params,
+									   *into_nv_encode( opts.encode_method ),
+									   *into_nv_preset( opts.encode_preset ) );
+
+		NV_ENC_RECONFIGURE_PARAMS reconfigure_params;
+
+		reconfigure_params.version = NV_ENC_RECONFIGURE_PARAMS_VER;
+		reconfigure_params.resetEncoder = 1;
+		reconfigure_params.reInitEncodeParams = params;
+
+		_->Reconfigure( &reconfigure_params );
+		_->Allocate();
+	}
 }
 
 NvEncoderWrapper::~NvEncoderWrapper()
 {
 	_->Deallocate();
-	_->DestroyEncoder();
 }
 
 void NvEncoderWrapper::encode( Reader &reader, Writer &out, std::vector<uint32_t> &frame_len )

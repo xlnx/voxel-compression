@@ -52,6 +52,7 @@ NvEncoder::NvEncoder( NV_ENC_DEVICE_TYPE eDeviceType, void *pDevice, uint32_t nW
 	void *hEncoder = NULL;
 	NVENC_API_CALL( m_nvenc.nvEncOpenEncodeSessionEx( &encodeSessionExParams, &hEncoder ) );
 	m_hEncoder = hEncoder;
+	vm::println( "{}", m_hEncoder );
 }
 
 void NvEncoder::LoadNvEncApi()
@@ -102,8 +103,8 @@ void NvEncoder::CreateDefaultEncoderParams( NV_ENC_INITIALIZE_PARAMS *pIntialize
 	pIntializeParams->enablePTD = 1;
 	pIntializeParams->reportSliceOffsets = 0;
 	pIntializeParams->enableSubFrameWrite = 0;
-	pIntializeParams->maxEncodeWidth = m_nWidth;
-	pIntializeParams->maxEncodeHeight = m_nHeight;
+	pIntializeParams->maxEncodeWidth = 4096;
+	pIntializeParams->maxEncodeHeight = 4096;
 	pIntializeParams->enableMEOnlyMode = m_bMotionEstimationOnly;
 	pIntializeParams->enableOutputInVidmem = m_bOutputInVideoMemory;
 #if defined( _WIN32 )
@@ -267,8 +268,6 @@ void NvEncoder::Deallocate()
 	} else {
 		DestroyBitstreamBuffer();
 	}
-
-	m_hEncoder = nullptr;
 }
 
 void NvEncoder::DestroyEncoder()
@@ -291,6 +290,8 @@ void NvEncoder::DestroyHWEncoder()
 	m_nvenc.nvEncDestroyEncoder( m_hEncoder );
 
 	m_bEncoderInitialized = false;
+
+	m_hEncoder = nullptr;
 }
 
 const NvEncInputFrame *NvEncoder::GetNextInputFrame()
@@ -456,6 +457,7 @@ void NvEncoder::GetEncodedPacket( std::vector<NV_ENC_OUTPUT_PTR> &vOutputBuffer,
 
 bool NvEncoder::Reconfigure( const NV_ENC_RECONFIGURE_PARAMS *pReconfigureParams )
 {
+	vm::println( "reconfigure {} {}", pReconfigureParams->reInitEncodeParams.encodeWidth, pReconfigureParams->reInitEncodeParams.encodeHeight );
 	NVENC_API_CALL( m_nvenc.nvEncReconfigureEncoder( m_hEncoder, const_cast<NV_ENC_RECONFIGURE_PARAMS *>( pReconfigureParams ) ) );
 
 	memcpy( &m_initializeParams, &( pReconfigureParams->reInitEncodeParams ), sizeof( m_initializeParams ) );
@@ -467,6 +469,8 @@ bool NvEncoder::Reconfigure( const NV_ENC_RECONFIGURE_PARAMS *pReconfigureParams
 	m_nHeight = m_initializeParams.encodeHeight;
 	m_nMaxEncodeWidth = m_initializeParams.maxEncodeWidth;
 	m_nMaxEncodeHeight = m_initializeParams.maxEncodeHeight;
+
+	// vm::println( "{} {}", m_nWidth, m_nHeight );
 
 	return true;
 }

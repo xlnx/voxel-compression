@@ -16,12 +16,11 @@ struct NvEncoderWrapper : vm::Dynamic, vm::NoCopy, vm::NoMove
 {
 	NvEncoderWrapper( VideoCompressOptions const &opts );
 	~NvEncoderWrapper();
+
 	void encode( Reader &reader, Writer &out, std::vector<uint32_t> &frame_len );
 
-	cufx::drv::Context ctx = 0;
-	std::unique_ptr<NvEncoder> _;
-	NV_ENC_CONFIG cfg = { NV_ENC_CONFIG_VER };
-	NV_ENC_INITIALIZE_PARAMS params = { NV_ENC_INITIALIZE_PARAMS_VER };
+	static cufx::drv::Context ctx;
+	static std::unique_ptr<NvEncoder> _;
 };
 
 VM_END_MODULE()
