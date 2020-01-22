@@ -67,11 +67,6 @@ void NvEncoderCuda::AllocateInputBuffers( int32_t numInputBuffers )
 	}
 }
 
-void NvEncoderCuda::SetIOCudaStreams( NV_ENC_CUSTREAM_PTR inputStream, NV_ENC_CUSTREAM_PTR outputStream )
-{
-	NVENC_API_CALL( m_nvenc.nvEncSetIOCudaStreams( m_hEncoder, inputStream, outputStream ) );
-}
-
 void NvEncoderCuda::ReleaseInputBuffers()
 {
 	ReleaseCudaResources();
