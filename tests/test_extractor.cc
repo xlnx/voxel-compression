@@ -1,5 +1,7 @@
 #include <fstream>
 #include <gtest/gtest.h>
+#define private public
+#define protected public
 #include <vocomp/refiner.hpp>
 #include <vocomp/extractor.hpp>
 
@@ -41,38 +43,26 @@ TEST( test_extractor, simple )
 	EXPECT_EQ( extractor.block_size(), 64 );
 	EXPECT_EQ( extractor.block_inner(), 60 );
 	EXPECT_EQ( extractor.padding(), 2 );
-	struct Consumer : BlockConsumer
-	{
-		Consumer( size_t buffer_size ) :
-		  buffer( buffer_size ),
-		  _( buffer.data(), buffer.size() )
-		{
-		}
 
-		void consume( cufx::MemoryView1D<unsigned char> const &data,
-					  Idx const &idx,
-					  std::size_t offset ) override
-		{
-			res.emplace_back( idx, data.size(), offset );
-		}
-		void wait() override
-		{
-			vm::println( "wait" );
-		}
-		cufx::MemoryView1D<unsigned char> swap_buffer() const override { return _; }
-
-		vector<unsigned char> buffer;
-		vector<tuple<Idx, size_t, size_t>> res;
-		cufx::MemoryView1D<unsigned char> _;
-	};
 	vector<Idx> blocks = { { 0, 0, 0 }, { 1, 0, 0 } };
-	vm::println( "swap_buffer: {}", extractor.frame_size() * 3 );
-	Consumer consumer( extractor.frame_size() * 4 );
-	extractor.batch_extract( blocks, consumer );
-	ASSERT_EQ( consumer.res,
-			   ( vector<tuple<Idx, size_t, size_t>>{
-				 { { 0, 0, 0 }, 262144, 0 },
-				 { { 1, 0, 0 }, 98304, 0 },
-				 { { 1, 0, 0 }, 163840, 98304 } } ) );
-	// extractor.batch_extract()
+	vector<unsigned char> buffer( 64 * 64 * 64 );
+	vector<tuple<Idx, unsigned, unsigned, unsigned, unsigned, unsigned>> res;
+	cufx::MemoryView1D<unsigned char> buffer_view( buffer.data(), buffer.size() );
+	extractor.batch_extract( blocks, [&]( Idx const &idx, VoxelStreamPacket const &packet ) {
+		res.emplace_back( idx, packet.offset, packet.inner_offset,
+						  packet.length, packet._.id, packet._.length );
+		// vm::println( "{}:{ <8} ({}, {})    #{}.{}",
+		// 			 idx, packet.offset, packet.inner_offset,
+		// 			 packet.length, packet._.id, packet._.length );
+		packet.append_to( buffer_view );
+	} );
+	ASSERT_EQ( res,
+			   ( vector<tuple<Idx, unsigned, unsigned, unsigned, unsigned, unsigned>>{
+				 { { 0, 0, 0 }, 0, 0, 98304, 0, 98304 },
+				 { { 0, 0, 0 }, 98304, 0, 98304, 1, 98304 },
+				 { { 0, 0, 0 }, 98304 * 2, 0, 65536, 2, 98304 },
+				 { { 1, 0, 0 }, 0, 65536, 32768, 2, 98304 },
+				 { { 1, 0, 0 }, 32768, 0, 98304, 3, 98304 },
+				 { { 1, 0, 0 }, 32768 + 98304, 0, 98304, 4, 98304 },
+				 { { 1, 0, 0 }, 32768 + 98304 * 2, 0, 32768, 5, 98304 } } ) );
 }

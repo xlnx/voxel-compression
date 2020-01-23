@@ -9,10 +9,9 @@ using namespace std;
 VM_EXPORT
 {
 	void Extractor::batch_extract( vector<Idx> const &blocks,
-								   BlockConsumer &consumer )
+								   std::function<void( Idx const &idx, VoxelStreamPacket const & )> const &consumer )
 	{
 		if ( !blocks.size() ) return;
-		auto swap_buffer = consumer.swap_buffer();
 		vector<map<Idx, BlockIndex>::const_iterator> sorted_blocks( blocks.size() );
 		std::transform( blocks.begin(), blocks.end(), sorted_blocks.begin(),
 						[this]( Idx const &idx ) { return block_idx.find( idx ); } );
@@ -49,18 +48,19 @@ VM_EXPORT
 		int64_t block_bytes = header.block_size * header.block_size * header.block_size;
 		decomp.decompress(
 		  linked_reader,
-		  [&]( Buffer const &buffer ) {
+		  [&]( VideoStreamPacket const &packet ) {
 			  while ( i < linked_block_offsets.size() ) {
-				  int64_t inbuffer_offset = linked_block_offsets[ i ] + curr_block_offset - linked_read_pos;
+				  int64_t inpacket_offset = linked_block_offsets[ i ] + curr_block_offset - linked_read_pos;
 				  // buffer contains current block
-				  if ( inbuffer_offset >= 0 && inbuffer_offset < buffer.size() ) {
-					  int64_t inbuffer_max_len = buffer.size() - inbuffer_offset;
-					  auto len = std::min( inbuffer_max_len,
+				  if ( inpacket_offset >= 0 && inpacket_offset < packet.length ) {
+					  int64_t inpacket_max_len = packet.length - inpacket_offset;
+					  auto len = std::min( inpacket_max_len,
 										   block_bytes - curr_block_offset );
-					  consumer.consume(
-						buffer.slice( inbuffer_offset, len ),
-						sorted_blocks[ i ]->first,
-						curr_block_offset );
+					  VoxelStreamPacket blk_packet( packet, inpacket_offset );
+					  blk_packet.offset = curr_block_offset;
+					  blk_packet.length = len;
+					  consumer( sorted_blocks[ i ]->first, blk_packet );
+
 					  curr_block_offset += len;
 					  if ( curr_block_offset >= block_bytes ) {
 						  curr_block_offset = 0;
@@ -72,10 +72,8 @@ VM_EXPORT
 					  break;
 				  }
 			  }
-			  linked_read_pos += buffer.size();
-			  consumer.wait();
-		  },
-		  swap_buffer );
+			  linked_read_pos += packet.length;
+		  } );
 	}
 }
 

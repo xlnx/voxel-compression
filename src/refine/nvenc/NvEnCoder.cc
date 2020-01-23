@@ -52,7 +52,7 @@ NvEncoder::NvEncoder( NV_ENC_DEVICE_TYPE eDeviceType, void *pDevice, uint32_t nW
 	void *hEncoder = NULL;
 	NVENC_API_CALL( m_nvenc.nvEncOpenEncodeSessionEx( &encodeSessionExParams, &hEncoder ) );
 	m_hEncoder = hEncoder;
-	vm::println( "{}", m_hEncoder );
+	// vm::println( "{}", m_hEncoder );
 }
 
 void NvEncoder::LoadNvEncApi()
@@ -457,7 +457,7 @@ void NvEncoder::GetEncodedPacket( std::vector<NV_ENC_OUTPUT_PTR> &vOutputBuffer,
 
 bool NvEncoder::Reconfigure( const NV_ENC_RECONFIGURE_PARAMS *pReconfigureParams )
 {
-	vm::println( "reconfigure {} {}", pReconfigureParams->reInitEncodeParams.encodeWidth, pReconfigureParams->reInitEncodeParams.encodeHeight );
+	// vm::println( "reconfigure {} {}", pReconfigureParams->reInitEncodeParams.encodeWidth, pReconfigureParams->reInitEncodeParams.encodeHeight );
 	NVENC_API_CALL( m_nvenc.nvEncReconfigureEncoder( m_hEncoder, const_cast<NV_ENC_RECONFIGURE_PARAMS *>( pReconfigureParams ) ) );
 
 	memcpy( &m_initializeParams, &( pReconfigureParams->reInitEncodeParams ), sizeof( m_initializeParams ) );

@@ -95,65 +95,9 @@ struct VideoDecompressorImpl final : vm::NoCopy, vm::NoMove
 		return _.data();
 	}
 
+	/* async decompress procedure */
 	void decompress( Reader &reader,
-					 std::function<void( Buffer const & )> const &consumer,
-					 Buffer const &swap_buffer )
-	{
-		auto dp_swap = swap_buffer.ptr();
-		auto dp_swap_end = dp_swap + swap_buffer.size();
-		auto on_picture_display = [&]( CUdeviceptr dp_src, unsigned src_pitch, CUstream stream ) {
-			if ( swap_buffer.size() < ( luma_height + chroma_height ) * width ) {
-				throw std::runtime_error( vm::fmt(
-				  "insufficient swap buffer size: {} < {}",
-				  swap_buffer.size(), ( luma_height + chroma_height ) * width ) );
-			}
-
-			CUDA_MEMCPY2D m = {};
-			m.srcMemoryType = CU_MEMORYTYPE_DEVICE;
-			m.srcPitch = src_pitch;
-			m.dstMemoryType = swap_buffer.device_id().is_device() ? CU_MEMORYTYPE_DEVICE : CU_MEMORYTYPE_HOST;
-			m.dstPitch = m.WidthInBytes = width;
-
-			if ( dp_swap + m.WidthInBytes * m.Height > dp_swap_end ) {
-				consumer( swap_buffer.slice( 0, dp_swap - swap_buffer.ptr() ) );
-				dp_swap = swap_buffer.ptr();
-			}
-			m.srcDevice = dp_src;
-			m.dstDevice = ( CUdeviceptr )( m.dstHost = dp_swap );
-			m.Height = luma_height;
-			dp_swap += m.WidthInBytes * m.Height;
-			CUDA_DRVAPI_CALL( cuMemcpy2DAsync( &m, stream ) );  //ck
-
-			if ( dp_swap + m.WidthInBytes * m.Height > dp_swap_end ) {
-				consumer( swap_buffer.slice( 0, dp_swap - swap_buffer.ptr() ) );
-				dp_swap = swap_buffer.ptr();
-			}
-			m.srcDevice = dp_src + m.srcPitch * surface_height;
-			m.dstDevice = ( CUdeviceptr )( m.dstHost = dp_swap );
-			m.Height = chroma_height;
-			dp_swap += m.WidthInBytes * m.Height;
-			CUDA_DRVAPI_CALL( cuMemcpy2DAsync( &m, stream ) );  //ck
-		};
-		this->on_picture_display.with(
-		  on_picture_display, [&] {
-			  uint32_t frame_len;
-			  while ( reader.read( reinterpret_cast<char *>( &frame_len ), sizeof( uint32_t ) ) ) {
-				  auto packet = get_packet( frame_len );
-				  reader.read( packet, frame_len );
-				  decode_and_advance( packet, frame_len );
-			  }
-			  decode_and_advance( nullptr, 0 );
-			  for ( auto &slot : slots ) {
-				  if ( auto old_dp = slot.wait() ) {
-					  //   vm::println( "unmap {}", old_dp );
-					  NVDEC_API_CALL( cuvidUnmapVideoFrame( this->decoder, old_dp ) );
-				  }
-			  }
-			  if ( dp_swap > swap_buffer.ptr() ) {
-				  consumer( swap_buffer.slice( 0, dp_swap - swap_buffer.ptr() ) );
-			  }
-		  } );
-	}
+					 std::function<void( VideoStreamPacket const & )> const &consumer );
 
 public:
 	VideoDecompressorImpl( VideoDecompressOptions const &opts ) :
@@ -188,6 +132,7 @@ public:
 	}
 
 private:
+	/* one slot <-> one temporary devptr processing task */
 	struct Slot
 	{
 		Slot()
@@ -199,10 +144,12 @@ private:
 			cuStreamDestroy( stream );
 		}
 
+		/* add one devptr to fill this slot */
 		void reset( CUdeviceptr new_dp )
 		{
 			dp = new_dp;
 		}
+		/* wait for stream tasks and pop devptr */
 		CUdeviceptr wait()
 		{
 			if ( dp ) {
@@ -384,7 +331,7 @@ private:
 		return reinterpret_cast<VideoDecompressorImpl *>( self )->handle_picture_display( params );
 	}
 
-private:
+public:
 	unsigned io_queue_size;
 
 	int surface_width;
@@ -406,6 +353,122 @@ private:
 	CUvideodecoder decoder = nullptr;
 };
 
+struct VideoStreamPacketImpl
+{
+	CUdeviceptr dp_src;
+	unsigned src_pitch;
+	CUstream stream;
+	VideoDecompressorImpl *decomp;
+};
+
+void VideoStreamPacket::copy_async( cufx::MemoryView1D<unsigned char> const &dst, unsigned offset, unsigned length ) const
+{
+	auto dp_dst = dst.ptr();
+	auto dp_dst_end = dp_dst + dst.size();
+
+	if ( dst.size() < length ) {
+		throw 2;
+	}
+
+	struct Rect
+	{
+		CUdeviceptr src;
+		int height;
+	};
+	Rect rect[ 2 ] = { { _.dp_src, _.decomp->luma_height },
+					   { _.dp_src + _.src_pitch * _.decomp->surface_height, _.decomp->chroma_height } };
+	if ( _.decomp->surface_height == _.decomp->luma_height ) {
+		rect[ 0 ].height += _.decomp->chroma_height;
+		rect[ 1 ].height = 0;
+	}
+	unsigned pos = 0, copied = 0;
+	for ( int i = 0; i != 2; ++i ) {
+		int src_offset = 0;
+		if ( pos < offset ) {
+			auto new_pos = std::min( offset, pos + _.decomp->width * rect[ i ].height );
+			src_offset = new_pos - pos;
+			pos = new_pos;
+		}
+		int nbytes = std::min( _.decomp->width * rect[ i ].height - src_offset, int( length - copied ) );
+		if ( nbytes != 0 ) {
+			if ( _.src_pitch == _.decomp->width ) {
+				CUDA_DRVAPI_CALL( cuMemcpyAsync( ( CUdeviceptr )( dp_dst + copied ),
+												 rect[ i ].src + src_offset, nbytes, _.stream ) );
+				copied += nbytes;
+			} else {
+				int width = _.decomp->width;
+				int pitch = _.src_pitch;
+				int y_offset = ( src_offset + width - 1 ) / width;
+				int y_length = ( src_offset + nbytes ) / width;
+
+				int front = y_offset * width - src_offset;
+				int back = src_offset + nbytes - y_length * width;
+
+				if ( front != 0 ) {
+					CUDA_DRVAPI_CALL( cuMemcpyAsync( ( CUdeviceptr )( dp_dst + copied ),
+													 rect[ i ].src + src_offset, front, _.stream ) );
+					copied += front;
+				}
+				if ( y_length > y_offset ) {
+					CUDA_MEMCPY2D m = {};
+					m.srcMemoryType = CU_MEMORYTYPE_DEVICE;
+					m.srcPitch = _.src_pitch;
+					m.dstMemoryType = dst.device_id().is_device() ? CU_MEMORYTYPE_DEVICE : CU_MEMORYTYPE_HOST;
+					m.dstPitch = m.WidthInBytes = width;
+
+					m.srcDevice = rect[ i ].src + y_offset * pitch;
+					m.dstDevice = ( CUdeviceptr )( m.dstHost = dp_dst + copied );
+					m.Height = y_length - y_offset;
+
+					CUDA_DRVAPI_CALL( cuMemcpy2DAsync( &m, _.stream ) );  //ck
+					copied += m.WidthInBytes * m.Height;
+				}
+				if ( back != 0 ) {
+					CUDA_DRVAPI_CALL( cuMemcpyAsync( ( CUdeviceptr )( dp_dst + copied ),
+													 y_length * width, back, _.stream ) );
+					copied += back;
+				}
+			}
+		}
+	}
+	vm::println( "copied {} -> buffer {}", copied, length );
+	// if ( copied > length ) {
+	// 	throw std::logic_error( vm::fmt( "copied {} > length {}", copied, length ) );
+	// }
+}
+
+void VideoDecompressorImpl::decompress( Reader &reader,
+										std::function<void( VideoStreamPacket const & )> const &consumer )
+{
+	// auto dp_swap = swap_buffer.ptr();
+	// auto dp_swap_end = dp_swap + swap_buffer.size();
+	unsigned packet_id = 0;
+
+	auto on_picture_display = [&]( CUdeviceptr dp_src, unsigned src_pitch, CUstream stream ) {
+		VideoStreamPacketImpl packet_impl{ dp_src, src_pitch, stream, this };
+		VideoStreamPacket packet( packet_impl );
+		packet.length = width * ( luma_height + chroma_height );
+		packet.id = packet_id++;
+		consumer( packet );
+	};
+	this->on_picture_display.with(
+	  on_picture_display, [&] {
+		  uint32_t frame_len;
+		  while ( reader.read( reinterpret_cast<char *>( &frame_len ), sizeof( uint32_t ) ) ) {
+			  auto packet = get_packet( frame_len );
+			  reader.read( packet, frame_len );
+			  decode_and_advance( packet, frame_len );
+		  }
+		  decode_and_advance( nullptr, 0 );
+		  for ( auto &slot : slots ) {
+			  if ( auto old_dp = slot.wait() ) {
+				  //   vm::println( "unmap {}", old_dp );
+				  NVDEC_API_CALL( cuvidUnmapVideoFrame( this->decoder, old_dp ) );
+			  }
+		  }
+	  } );
+}
+
 VideoDecompressor::VideoDecompressor( VideoDecompressOptions const &opts ) :
   _( new VideoDecompressorImpl( opts ) )
 {
@@ -414,10 +477,9 @@ VideoDecompressor::~VideoDecompressor()
 {
 }
 void VideoDecompressor::decompress( Reader &reader,
-									std::function<void( Buffer const & )> const &consumer,
-									Buffer const &swap_buffer )
+									std::function<void( VideoStreamPacket const & )> const &consumer )
 {
-	_->decompress( reader, consumer, swap_buffer );
+	_->decompress( reader, consumer );
 }
 
 VM_END_MODULE()

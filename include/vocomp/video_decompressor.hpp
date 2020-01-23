@@ -20,7 +20,26 @@ struct VideoDecompressOptions
 	VM_DEFINE_ATTRIBUTE( unsigned, io_queue_size ) = 4;
 };
 
-using Buffer = cufx::MemoryView1D<unsigned char>;
+struct VideoStreamPacketImpl;
+
+struct VideoStreamPacket : vm::NoCopy, vm::NoMove
+{
+	VideoStreamPacket( VideoStreamPacketImpl const &_ ) :
+	  _( _ ) {}
+
+	void copy_async( cufx::MemoryView1D<unsigned char> const &dst ) const
+	{
+		return copy_async( dst, 0, length );
+	}
+	void copy_async( cufx::MemoryView1D<unsigned char> const &dst, unsigned offset, unsigned length ) const;
+
+public:
+	unsigned length;
+	unsigned id;
+
+private:
+	VideoStreamPacketImpl const &_;
+};
 
 struct VideoDecompressor final : vm::NoCopy
 {
@@ -28,8 +47,7 @@ struct VideoDecompressor final : vm::NoCopy
 	~VideoDecompressor();
 
 	void decompress( Reader &reader,
-					 std::function<void( Buffer const & )> const &consumer,
-					 Buffer const &swap_buffer );
+					 std::function<void( VideoStreamPacket const & )> const &consumer );
 
 private:
 	vm::Box<VideoDecompressorImpl> _;

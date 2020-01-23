@@ -9,13 +9,37 @@ VM_BEGIN_MODULE( vol )
 
 VM_EXPORT
 {
-	struct BlockConsumer : vm::NoCopy
+	// struct BlockConsumer : vm::NoCopy
+	// {
+	// 	virtual void consume( cufx::MemoryView1D<unsigned char> const &data,
+	// 						  Idx const &idx,
+	// 						  std::size_t offset ) = 0;
+	// 	virtual void wait() {}
+	// 	virtual cufx::MemoryView1D<unsigned char> swap_buffer() const = 0;
+	// };
+
+	struct VoxelStreamPacket : vm::NoMove, vm::NoCopy
 	{
-		virtual void consume( cufx::MemoryView1D<unsigned char> const &data,
-							  Idx const &idx,
-							  std::size_t offset ) = 0;
-		virtual void wait() {}
-		virtual cufx::MemoryView1D<unsigned char> swap_buffer() const = 0;
+		VoxelStreamPacket( VideoStreamPacket const &_, unsigned inner_offset ) :
+		  _( _ ),
+		  inner_offset( inner_offset ) {}
+
+	public:
+		void append_to( cufx::MemoryView1D<unsigned char> const &buffer ) const
+		{
+			if ( buffer.size() < offset + length ) {
+				throw std::logic_error(
+				  vm::fmt( "insufficient buffer size: {} < {}", buffer.size(), offset + length ) );
+			}
+			_.copy_async( buffer.slice( offset, length ), inner_offset, length );
+		}
+
+	public:
+		unsigned offset, length;
+
+	private:
+		VideoStreamPacket const &_;
+		unsigned inner_offset;
 	};
 
 	struct ExtractorOptions
@@ -45,7 +69,7 @@ VM_EXPORT
 		}
 		// block_idx ->
 		void batch_extract( std::vector<Idx> const &blocks,
-							BlockConsumer &consumer );
+							std::function<void( Idx const &idx, VoxelStreamPacket const & )> const &consumer );
 
 		auto raw() const { return header.raw; }
 		auto dim() const { return header.dim; }

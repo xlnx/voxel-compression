@@ -39,8 +39,6 @@ void NvEncoderCuda::AllocateInputBuffers( int32_t numInputBuffers )
 	// for MEOnly mode we need to allocate seperate set of buffers for reference frame
 	int numCount = m_bMotionEstimationOnly ? 2 : 1;
 
-	std::cout << m_cuContext << std::endl;
-
 	for ( int count = 0; count < numCount; count++ ) {
 		CUDA_DRVAPI_CALL( cuCtxPushCurrent( m_cuContext ) );
 		std::vector<void *> inputFrames;

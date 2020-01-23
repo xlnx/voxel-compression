@@ -79,8 +79,6 @@ TEST( test_video_codec, simple )
 	auto opts = VideoDecompressOptions{}
 				  .set_encode( EncodeMethod::H264 )
 				  .set_io_queue_size( 1 );
-	vector<unsigned char> swap_buffer( frame_size * 10 );  // > total blocks
-	cufx::MemoryView1D<unsigned char> swap_buffer_slice( swap_buffer.data(), swap_buffer.size() );
 	auto data_ptr = compressed.data();
 
 	{
@@ -90,10 +88,9 @@ TEST( test_video_codec, simple )
 		vector<size_t> buffer_size;
 		deVideoCompressor.decompress(
 		  first_frame,
-		  [&]( Buffer const &buffer ) {
-			  buffer_size.emplace_back( buffer.size() );
-		  },
-		  swap_buffer_slice );
+		  [&]( VideoStreamPacket const &packet ) {
+			  buffer_size.emplace_back( packet.length );
+		  } );
 		ASSERT_EQ( buffer_size, vector<size_t>{ frame_size } );
 	}
 	{
@@ -103,10 +100,9 @@ TEST( test_video_codec, simple )
 		vector<size_t> buffer_size;
 		deVideoCompressor.decompress(
 		  first_frame,
-		  [&]( Buffer const &buffer ) {
-			  buffer_size.emplace_back( buffer.size() );
-		  },
-		  swap_buffer_slice );
+		  [&]( VideoStreamPacket const &packet ) {
+			  buffer_size.emplace_back( packet.length );
+		  } );
 		ASSERT_EQ( buffer_size, vector<size_t>{ frame_size } );
 	}
 	{
@@ -116,11 +112,10 @@ TEST( test_video_codec, simple )
 		vector<size_t> buffer_size;
 		deVideoCompressor.decompress(
 		  frame_1_3,
-		  [&]( Buffer const &buffer ) {
-			  buffer_size.emplace_back( buffer.size() );
-		  },
-		  swap_buffer_slice );
-		ASSERT_EQ( buffer_size, vector<size_t>{ 3 * frame_size } );
+		  [&]( VideoStreamPacket const &packet ) {
+			  buffer_size.emplace_back( packet.length );
+		  } );
+		ASSERT_EQ( buffer_size, ( vector<size_t>{ frame_size, frame_size, frame_size } ) );
 	}
 	{
 		SliceReader frame_0_3(
@@ -129,11 +124,10 @@ TEST( test_video_codec, simple )
 		vector<size_t> buffer_size;
 		deVideoCompressor.decompress(
 		  frame_0_3,
-		  [&]( Buffer const &buffer ) {
-			  buffer_size.emplace_back( buffer.size() );
-		  },
-		  swap_buffer_slice );
-		ASSERT_EQ( buffer_size, vector<size_t>{ 4 * frame_size } );
+		  [&]( VideoStreamPacket const &packet ) {
+			  buffer_size.emplace_back( packet.length );
+		  } );
+		ASSERT_EQ( buffer_size, ( vector<size_t>{ frame_size, frame_size, frame_size, frame_size } ) );
 	}
 }
 
