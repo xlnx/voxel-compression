@@ -72,6 +72,60 @@ inline NVDECException NVDECException::makeNVDECException( const std::string &err
 		}                                                                                                        \
 	} while ( 0 )
 
+struct VideoDecompressorImpl;
+
+/* one slot <-> one temporary devptr processing task */
+struct VideoStreamPacketMapSlot
+{
+	VideoStreamPacketMapSlot() :
+	  id( -1 )
+	{
+		CUDA_DRVAPI_CALL( cuStreamCreate( &stream, CU_STREAM_NON_BLOCKING ) );
+	}
+	~VideoStreamPacketMapSlot()
+	{
+		cuStreamDestroy( stream );
+	}
+
+public:
+	/* add one devptr to fill this slot */
+	VideoStreamPacketReleaseEvent map( CUvideodecoder decoder, int pid, CUdeviceptr *dp_src,
+									   unsigned *src_pitch, CUVIDPROCPARAMS *params )
+	{
+		VideoStreamPacketReleaseEvent evt;
+		NVDEC_API_CALL( cuvidMapVideoFrame( decoder, pid, dp_src, src_pitch, params ) );
+		dp = *dp_src;
+		id.store( evt.val = counter() );
+		evt.idptr = &id;
+		return evt;
+	}
+	/* wait for stream tasks and pop devptr */
+	bool unmap( CUvideodecoder decoder )
+	{
+		if ( dp ) {
+			cuStreamSynchronize( stream );
+			NVDEC_API_CALL( cuvidUnmapVideoFrame( decoder, dp ) );
+			dp = 0;
+			id.store( -1 );
+			return true;
+		}
+		return false;
+	}
+
+private:
+	static int64_t counter()
+	{
+		static std::atomic_int64_t i64( 0 );
+		return i64.fetch_add( 1 );
+	}
+
+private:
+	CUdeviceptr dp = 0;
+	CUstream stream;
+	atomic_int64_t id;
+	friend class VideoDecompressorImpl;
+};
+
 struct VideoDecompressorImpl final : vm::NoCopy, vm::NoMove
 {
 	std::vector<uint32_t> &decode_header( Reader &reader )
@@ -132,41 +186,6 @@ public:
 	}
 
 private:
-	/* one slot <-> one temporary devptr processing task */
-	struct Slot
-	{
-		Slot()
-		{
-			CUDA_DRVAPI_CALL( cuStreamCreate( &stream, CU_STREAM_NON_BLOCKING ) );
-		}
-		~Slot()
-		{
-			cuStreamDestroy( stream );
-		}
-
-		/* add one devptr to fill this slot */
-		void reset( CUdeviceptr new_dp )
-		{
-			dp = new_dp;
-		}
-		/* wait for stream tasks and pop devptr */
-		CUdeviceptr wait()
-		{
-			if ( dp ) {
-				cuStreamSynchronize( stream );
-				auto old_dp = dp;
-				dp = 0;
-				return old_dp;
-			}
-			return dp;
-		}
-		CUstream get() const { return stream; }
-
-	private:
-		CUdeviceptr dp = 0;
-		CUstream stream;
-	};
-
 	void decode_and_advance( char *data, int len, uint32_t flags = 0 )
 	{
 		CUVIDSOURCEDATAPACKET packet = {};
@@ -178,146 +197,13 @@ private:
 		}
 		NVDEC_API_CALL( cuvidParseVideoData( parser, &packet ) );
 	}
-	int handle_video_sequence( CUVIDEOFORMAT *format )
-	{
-		if ( decoder ) return io_queue_size;
-
-		if ( format->min_num_decode_surfaces > io_queue_size ) {
-			io_queue_size = format->min_num_decode_surfaces;
-			vm::println( "min_num_decode_surfaces > io_queue_size, resize to {}", io_queue_size );
-		}
-		vm::println( "io_queue_size = {}", io_queue_size );
-
-		CUDA_DRVAPI_CALL( cuCtxPushCurrent( ctx ) );
-		slots.resize( io_queue_size );
-		CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );
-
-		CUVIDDECODECAPS caps = {};
-		caps.eCodecType = format->codec;
-		caps.eChromaFormat = format->chroma_format;
-		caps.nBitDepthMinus8 = format->bit_depth_luma_minus8;
-		CUDA_DRVAPI_CALL( cuCtxPushCurrent( ctx ) );
-		NVDEC_API_CALL( cuvidGetDecoderCaps( &caps ) );
-		CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );
-
-		if ( !caps.bIsSupported ) {
-			throw std::runtime_error( "current codec is not supported on this GPU" );
-		}
-
-		if ( format->coded_width > caps.nMaxWidth ||
-			 format->coded_height > caps.nMaxHeight ) {
-			throw std::runtime_error( "unsupported resolution" );
-			// vm::fmt("{}: {}x{}\n") );
-		}
-
-		if ( ( format->coded_width >> 4 ) * ( format->coded_height >> 4 ) > caps.nMaxMBCount ) {
-			throw std::runtime_error( "unsupported mbcount" );
-		}
-
-		CUVIDDECODECREATEINFO info = {};
-		info.CodecType = format->codec;
-		info.ChromaFormat = format->chroma_format;
-		if ( format->chroma_format == cudaVideoChromaFormat_420 ) {
-			if ( format->bit_depth_luma_minus8 ) {
-				info.OutputFormat = cudaVideoSurfaceFormat_P016;
-			} else {
-				info.OutputFormat = cudaVideoSurfaceFormat_NV12;
-			}
-		} else if ( format->chroma_format == cudaVideoChromaFormat_444 ) {
-			if ( format->bit_depth_luma_minus8 ) {
-				info.OutputFormat = cudaVideoSurfaceFormat_YUV444_16Bit;
-			} else {
-				info.OutputFormat = cudaVideoSurfaceFormat_YUV444;
-			}
-		} else {
-			throw std::runtime_error( "unsupported chroma format" );
-		}
-		info.bitDepthMinus8 = format->bit_depth_luma_minus8;
-		if ( format->progressive_sequence ) {
-			info.DeinterlaceMode = cudaVideoDeinterlaceMode_Weave;
-		} else {
-			info.DeinterlaceMode = cudaVideoDeinterlaceMode_Adaptive;
-		}
-		info.ulCreationFlags = cudaVideoCreate_PreferCUVID;
-		info.ulNumOutputSurfaces = info.ulNumDecodeSurfaces = io_queue_size; /* <---- */
-		info.vidLock = ctxlock;
-
-		surface_width = info.ulWidth = info.ulTargetWidth = format->coded_width;
-		surface_height = info.ulHeight = info.ulTargetHeight = format->coded_height;
-
-		width = format->display_area.right - format->display_area.left;
-		luma_height = format->display_area.bottom - format->display_area.top;
-		chroma_height = luma_height * [&] {
-			switch ( format->chroma_format ) {
-			case cudaVideoChromaFormat_Monochrome: return 0.0;
-			default: return 0.5;
-			case cudaVideoChromaFormat_422: return 1.0;
-			case cudaVideoChromaFormat_444: return 1.0;
-			}
-		}();
-		chroma_plains = [&] {
-			switch ( format->chroma_format ) {
-			case cudaVideoChromaFormat_Monochrome: return 0;
-			default: return 1;
-			case cudaVideoChromaFormat_444: return 2;
-			}
-		}();
-
-		CUDA_DRVAPI_CALL( cuCtxPushCurrent( ctx ) );
-		NVDEC_API_CALL( cuvidCreateDecoder( &decoder, &info ) );
-		CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );
-
-		vm::println( "nvdec setup decoder" );
-
-		return io_queue_size;
-	}
-	int handle_picture_decode( CUVIDPICPARAMS *params )
-	{
-		NVDEC_API_CALL( cuvidDecodePicture( decoder, params ) );
-		return 1;
-	}
-	int handle_picture_display( CUVIDPARSERDISPINFO *info )
-	{
-		const auto pid = info->picture_index;
-		auto stream = slots[ pid ].get();
-
-		CUVIDPROCPARAMS params = {};
-		params.progressive_frame = info->progressive_frame;
-		params.second_field = info->repeat_first_field + 1;
-		params.top_field_first = info->top_field_first;
-		params.unpaired_field = info->repeat_first_field < 0;
-		params.output_stream = stream;
-
-		CUdeviceptr dp_src = 0;
-		unsigned int src_pitch = 0;
-
-		// vm::println( "pid = {}", pid );
-		if ( auto old_dp = slots[ pid ].wait() ) {
-			// vm::println( "unmap {}", old_dp );
-			NVDEC_API_CALL( cuvidUnmapVideoFrame( this->decoder, old_dp ) );
-		}
-
-		NVDEC_API_CALL( cuvidMapVideoFrame( decoder, pid, &dp_src, &src_pitch, &params ) );
-		// vm::println( "map {}", dp_src );
-
-		CUVIDGETDECODESTATUS stat = {};
-		CUresult result = cuvidGetDecodeStatus( decoder, pid, &stat );
-		if ( result == CUDA_SUCCESS &&
-			 ( stat.decodeStatus == cuvidDecodeStatus_Error ||
-			   stat.decodeStatus == cuvidDecodeStatus_Error_Concealed ) ) {
-			vm::println( "decode error occurred" );
-		}
-
-		cuCtxPushCurrent( ctx );  //ck
-		( *on_picture_display )( dp_src, src_pitch, stream );
-		cuCtxPopCurrent( nullptr );  //ck
-
-		slots[ pid ].reset( dp_src );
-
-		return 1;
-	}
 
 private:
+	/* nvidia video parser callbacks */
+	int handle_video_sequence( CUVIDEOFORMAT *format );
+	int handle_picture_decode( CUVIDPICPARAMS *params );
+	int handle_picture_display( CUVIDPARSERDISPINFO *info );
+
 	static int CUDAAPI handle_video_sequence_proc( void *self, CUVIDEOFORMAT *params )
 	{
 		return reinterpret_cast<VideoDecompressorImpl *>( self )->handle_video_sequence( params );
@@ -333,6 +219,7 @@ private:
 
 public:
 	unsigned io_queue_size;
+	unsigned packet_id;
 
 	int surface_width;
 	int surface_height;
@@ -342,8 +229,11 @@ public:
 	int chroma_height;
 	int chroma_plains;
 
-	vm::With<std::function<void( CUdeviceptr, unsigned, CUstream )>> on_picture_display;
-	std::vector<Slot> slots;
+private:
+	using Consumer = std::function<void( VideoStreamPacket const & )>;
+
+	vm::With<Consumer> consumer;
+	unique_ptr<VideoStreamPacketMapSlot[]> slots;
 
 private:
 	cufx::drv::Context ctx = 0;
@@ -437,22 +327,12 @@ void VideoStreamPacket::copy_async( cufx::MemoryView1D<unsigned char> const &dst
 	// }
 }
 
-void VideoDecompressorImpl::decompress( Reader &reader,
-										std::function<void( VideoStreamPacket const & )> const &consumer )
+void VideoDecompressorImpl::decompress( Reader &reader, Consumer const &consumer )
 {
-	// auto dp_swap = swap_buffer.ptr();
-	// auto dp_swap_end = dp_swap + swap_buffer.size();
-	unsigned packet_id = 0;
-
-	auto on_picture_display = [&]( CUdeviceptr dp_src, unsigned src_pitch, CUstream stream ) {
-		VideoStreamPacketImpl packet_impl{ dp_src, src_pitch, stream, this };
-		VideoStreamPacket packet( packet_impl );
-		packet.length = width * ( luma_height + chroma_height );
-		packet.id = packet_id++;
-		consumer( packet );
-	};
-	this->on_picture_display.with(
-	  on_picture_display, [&] {
+	packet_id = 0;
+	this->consumer.with(
+	  consumer,
+	  [&] {
 		  uint32_t frame_len;
 		  while ( reader.read( reinterpret_cast<char *>( &frame_len ), sizeof( uint32_t ) ) ) {
 			  auto packet = get_packet( frame_len );
@@ -460,13 +340,153 @@ void VideoDecompressorImpl::decompress( Reader &reader,
 			  decode_and_advance( packet, frame_len );
 		  }
 		  decode_and_advance( nullptr, 0 );
-		  for ( auto &slot : slots ) {
-			  if ( auto old_dp = slot.wait() ) {
-				  //   vm::println( "unmap {}", old_dp );
-				  NVDEC_API_CALL( cuvidUnmapVideoFrame( this->decoder, old_dp ) );
-			  }
+		  for ( int i = 0; i != io_queue_size; ++i ) {
+			  slots[ i ].unmap( decoder );
 		  }
 	  } );
+}
+
+int VideoDecompressorImpl::handle_video_sequence( CUVIDEOFORMAT *format )
+{
+	if ( decoder ) return io_queue_size;
+
+	if ( format->min_num_decode_surfaces > io_queue_size ) {
+		io_queue_size = format->min_num_decode_surfaces;
+		vm::println( "min_num_decode_surfaces > io_queue_size, resize to {}", io_queue_size );
+	}
+	vm::println( "io_queue_size = {}", io_queue_size );
+
+	CUDA_DRVAPI_CALL( cuCtxPushCurrent( ctx ) );
+	slots.reset( new VideoStreamPacketMapSlot[ io_queue_size ] );
+	CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );
+
+	CUVIDDECODECAPS caps = {};
+	caps.eCodecType = format->codec;
+	caps.eChromaFormat = format->chroma_format;
+	caps.nBitDepthMinus8 = format->bit_depth_luma_minus8;
+	CUDA_DRVAPI_CALL( cuCtxPushCurrent( ctx ) );
+	NVDEC_API_CALL( cuvidGetDecoderCaps( &caps ) );
+	CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );
+
+	if ( !caps.bIsSupported ) {
+		throw std::runtime_error( "current codec is not supported on this GPU" );
+	}
+
+	if ( format->coded_width > caps.nMaxWidth ||
+		 format->coded_height > caps.nMaxHeight ) {
+		throw std::runtime_error( "unsupported resolution" );
+		// vm::fmt("{}: {}x{}\n") );
+	}
+
+	if ( ( format->coded_width >> 4 ) * ( format->coded_height >> 4 ) > caps.nMaxMBCount ) {
+		throw std::runtime_error( "unsupported mbcount" );
+	}
+
+	CUVIDDECODECREATEINFO info = {};
+	info.CodecType = format->codec;
+	info.ChromaFormat = format->chroma_format;
+	if ( format->chroma_format == cudaVideoChromaFormat_420 ) {
+		if ( format->bit_depth_luma_minus8 ) {
+			info.OutputFormat = cudaVideoSurfaceFormat_P016;
+		} else {
+			info.OutputFormat = cudaVideoSurfaceFormat_NV12;
+		}
+	} else if ( format->chroma_format == cudaVideoChromaFormat_444 ) {
+		if ( format->bit_depth_luma_minus8 ) {
+			info.OutputFormat = cudaVideoSurfaceFormat_YUV444_16Bit;
+		} else {
+			info.OutputFormat = cudaVideoSurfaceFormat_YUV444;
+		}
+	} else {
+		throw std::runtime_error( "unsupported chroma format" );
+	}
+	info.bitDepthMinus8 = format->bit_depth_luma_minus8;
+	if ( format->progressive_sequence ) {
+		info.DeinterlaceMode = cudaVideoDeinterlaceMode_Weave;
+	} else {
+		info.DeinterlaceMode = cudaVideoDeinterlaceMode_Adaptive;
+	}
+	info.ulCreationFlags = cudaVideoCreate_PreferCUVID;
+	info.ulNumOutputSurfaces = info.ulNumDecodeSurfaces = io_queue_size; /* <---- */
+	info.vidLock = ctxlock;
+
+	surface_width = info.ulWidth = info.ulTargetWidth = format->coded_width;
+	surface_height = info.ulHeight = info.ulTargetHeight = format->coded_height;
+
+	width = format->display_area.right - format->display_area.left;
+	luma_height = format->display_area.bottom - format->display_area.top;
+	chroma_height = luma_height * [&] {
+		switch ( format->chroma_format ) {
+		case cudaVideoChromaFormat_Monochrome: return 0.0;
+		default: return 0.5;
+		case cudaVideoChromaFormat_422: return 1.0;
+		case cudaVideoChromaFormat_444: return 1.0;
+		}
+	}();
+	chroma_plains = [&] {
+		switch ( format->chroma_format ) {
+		case cudaVideoChromaFormat_Monochrome: return 0;
+		default: return 1;
+		case cudaVideoChromaFormat_444: return 2;
+		}
+	}();
+
+	CUDA_DRVAPI_CALL( cuCtxPushCurrent( ctx ) );
+	NVDEC_API_CALL( cuvidCreateDecoder( &decoder, &info ) );
+	CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );
+
+	vm::println( "nvdec setup decoder" );
+
+	return io_queue_size;
+}
+
+int VideoDecompressorImpl::handle_picture_decode( CUVIDPICPARAMS *params )
+{
+	NVDEC_API_CALL( cuvidDecodePicture( decoder, params ) );
+	return 1;
+}
+
+int VideoDecompressorImpl::handle_picture_display( CUVIDPARSERDISPINFO *info )
+{
+	const auto pid = info->picture_index;
+
+	CUVIDPROCPARAMS params = {};
+	params.progressive_frame = info->progressive_frame;
+	params.second_field = info->repeat_first_field + 1;
+	params.top_field_first = info->top_field_first;
+	params.unpaired_field = info->repeat_first_field < 0;
+	params.output_stream = slots[ pid ].stream;
+
+	CUdeviceptr dp_src = 0;
+	unsigned int src_pitch = 0;
+
+	// vm::println( "pid = {}", pid );
+	slots[ pid ].unmap( decoder );
+	auto evt = slots[ pid ].map( decoder, pid, &dp_src, &src_pitch, &params );
+	// vm::println( "map {}", dp_src );
+
+	CUVIDGETDECODESTATUS stat = {};
+	CUresult result = cuvidGetDecodeStatus( decoder, pid, &stat );
+	if ( result == CUDA_SUCCESS &&
+		 ( stat.decodeStatus == cuvidDecodeStatus_Error ||
+		   stat.decodeStatus == cuvidDecodeStatus_Error_Concealed ) ) {
+		vm::println( "decode error occurred" );
+	}
+
+	CUDA_DRVAPI_CALL( cuCtxPushCurrent( ctx ) );  //ck
+
+	{
+		VideoStreamPacketImpl packet_impl{ dp_src, src_pitch, slots[ pid ].stream, this };
+		VideoStreamPacket packet( packet_impl );
+		packet.length = width * ( luma_height + chroma_height );
+		packet.id = packet_id++;
+		packet.release_event = evt;
+		( *consumer )( packet );
+	}
+
+	CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );	 //ck
+
+	return 1;
 }
 
 VideoDecompressor::VideoDecompressor( VideoDecompressOptions const &opts ) :

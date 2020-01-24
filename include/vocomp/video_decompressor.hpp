@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <VMUtils/nonnull.hpp>
 #include <VMUtils/concepts.hpp>
 #include <VMUtils/attributes.hpp>
@@ -20,6 +21,18 @@ struct VideoDecompressOptions
 	VM_DEFINE_ATTRIBUTE( unsigned, io_queue_size ) = 4;
 };
 
+struct VideoStreamPacketMapSlot;
+
+struct VideoStreamPacketReleaseEvent
+{
+	bool poll() const { return idptr->load() != val; }
+
+private:
+	std::atomic_int64_t const *idptr;
+	int64_t val;
+	friend class VideoStreamPacketMapSlot;
+};
+
 struct VideoStreamPacketImpl;
 
 struct VideoStreamPacket : vm::NoCopy, vm::NoMove
@@ -36,6 +49,7 @@ struct VideoStreamPacket : vm::NoCopy, vm::NoMove
 public:
 	unsigned length;
 	unsigned id;
+	VideoStreamPacketReleaseEvent release_event;
 
 private:
 	VideoStreamPacketImpl const &_;
