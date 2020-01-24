@@ -32,7 +32,7 @@ private:
 	ofstream output;
 
 	vol::UnboundedStreamWriter body_writer;
-	VideoCompressor video_VideoCompressor;
+	VideoCompressor video_compressor;
 
 	vector<char> read_buffer, write_buffer;
 	atomic<size_t> read_blocks = 0;
@@ -63,7 +63,7 @@ public:
 	  input( opts.input, Size3( raw.x, raw.y, raw.z ), sizeof( Voxel ) ),
 	  output( opts.output, ios::binary ),
 	  body_writer( output, sizeof( Header ) ),
-	  video_VideoCompressor( body_writer, opts.compress_opts )
+	  video_compressor( body_writer, opts.compress_opts )
 	{
 		if ( padding < 0 || padding > 2 ) {
 			throw runtime_error( "unsupported padding" );
@@ -241,12 +241,16 @@ public:
 								   .set_x( blkid % dim.x )
 								   .set_y( blkid / dim.x % dim.y )
 								   .set_z( blkid / ( dim.x * dim.y ) % dim.z );
-				block_idx[ idx ] = video_VideoCompressor.accept(
+				// auto dp = reinterpret_cast<uint8_t *>( dst );
+				// vm::println( "${}: {} {} {} {} {} {} {} {} {} {}...", blkid, int( dp[ 0 ] ), int( dp[ 1 ] ), int( dp[ 2 ] ),
+				// 			 int( dp[ 3 ] ), int( dp[ 4 ] ), int( dp[ 5 ] ), int( dp[ 6 ] ),
+				// 			 int( dp[ 7 ] ), int( dp[ 8 ] ), int( dp[ 9 ] ) );
+				block_idx[ idx ] = video_compressor.accept(
 				  vm::Arc<Reader>( new SliceReader( dst, nvoxels_per_block ) ) );
 			}
 		}
-		video_VideoCompressor.flush( true );
-		// vm::println( "{}", video_VideoCompressor.frame_len() );
+		video_compressor.flush( true );
+		// vm::println( "{}", video_compressor.frame_len() );
 		vm::println( "handled {} blocks", read_blocks );
 	}
 
@@ -272,14 +276,14 @@ public:
 					}
 				}
 			}
-			video_VideoCompressor.wait();
+			video_compressor.wait();
 		}
 
 		vector<char>{}.swap( read_buffer );
 		vector<char>{}.swap( write_buffer );
 
 		uint64_t meta_offset = body_writer.tell();
-		body_writer.write_typed( video_VideoCompressor.frame_offset() );
+		body_writer.write_typed( video_compressor.frame_offset() );
 		body_writer.write_typed( block_idx );
 		body_writer.write_typed( meta_offset );
 
@@ -291,7 +295,7 @@ public:
 						.set_raw( raw )
 						.set_dim( dim )
 						.set_adjusted( adjusted )
-						.set_frame_size( video_VideoCompressor.frame_size() )
+						.set_frame_size( video_compressor.frame_size() )
 						.set_encode_method();
 		StreamWriter writer( output, 0, sizeof( Header ) );
 		writer.write_typed( header );

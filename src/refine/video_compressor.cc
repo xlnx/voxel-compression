@@ -57,9 +57,12 @@ struct VideoCompressorImpl
 				nframes_size = nframes * frame_size;
 				size_t len = 0;
 				for ( auto &reader : input_readers ) {
+					// vm::println( "{}", reader.get() );
 					len += reader->size() - reader->tell();
 					if ( len > nframes_size ) {
 						readers.emplace_back( reader );
+						// vm::println( "!!{}", readers.back().get() );
+						// vm::println( "!!{}", readers.size() );
 					}
 				}
 				total_size -= nframes_size;
@@ -72,6 +75,7 @@ struct VideoCompressorImpl
 					auto part_reader = PartReader( linked_reader, 0, nframes_size );
 					part_reader.seek( 0 );
 					vector<uint32_t> frame_len;
+					// vm::println( "encode with {} blocks", input_readers.size() );
 					this->_->encode( part_reader, out, frame_len );
 					for ( auto &len : frame_len ) {
 						frame_offset.emplace_back( frame_offset.back() + len );
@@ -83,7 +87,7 @@ struct VideoCompressorImpl
 	}
 
 	// std::future<>
-	BlockIndex accept( vm::Arc<Reader> &&reader )
+	BlockIndex accept( vm::Arc<Reader> const &reader )
 	{
 		unique_lock<mutex> input_lk( input_mut );
 		BlockIndex idx;
@@ -91,7 +95,9 @@ struct VideoCompressorImpl
 		idx.offset = total_size % frame_size;
 		total_size += reader->size();
 		idx.last_frame = emitted_frames + ( total_size + frame_size - 1 ) / frame_size - 1;
-		readers.emplace_back( std::move( reader ) );
+		// vm::print( "{} ", make_tuple( idx.first_frame, idx.last_frame, idx.offset ) );
+		readers.emplace_back( reader );
+		// vm::println( "@{} {} {}", readers.size(), readers[ 0 ].get(), reader.get() );
 		if ( total_size >= frame_size * nframe_batch ) {
 			// vm::println( "notified {} / {}", total_size, frame_size * nframe_batch );
 			input_cv.notify_one();
@@ -120,6 +126,7 @@ struct VideoCompressorImpl
 		if ( wait ) {
 			finish_cv.wait( work_lk );
 		}
+		// vm::println( "{}", frame_offset );
 	}
 
 	void wait()
@@ -130,6 +137,7 @@ struct VideoCompressorImpl
 			auto padded_size = nframes_padded * frame_size;
 			if ( padded_size != total_size ) {
 				readers.emplace_back( new FilterReader( padded_size - total_size ) );
+				// vm::println( "@{}", readers.size() );
 				total_size = padded_size;
 			}
 		}

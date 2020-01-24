@@ -12,7 +12,7 @@ VM_EXPORT
 	{
 		SelfOwnedReader( Reader &reader, vector<char> buf = {} ) :
 		  SliceReader( [this, &reader, &buf] {
-			  buf.resize( reader.size() );
+			  buf.resize( reader.size() - reader.tell() );
 			  reader.read( buf.data(), buf.size() );
 			  return SliceReader( buf.data(), buf.size() );
 		  }() )

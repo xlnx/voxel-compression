@@ -128,21 +128,9 @@ private:
 
 struct VideoDecompressorImpl final : vm::NoCopy, vm::NoMove
 {
-	std::vector<uint32_t> &decode_header( Reader &reader )
+	uint8_t *get_packet( uint32_t len )
 	{
-		uint32_t nframes;
-		reader.read( reinterpret_cast<char *>( &nframes ), sizeof( nframes ) );
-		thread_local std::vector<uint32_t> frame_len;
-		frame_len.resize( nframes + 1 );
-		reader.read( reinterpret_cast<char *>( frame_len.data() ),
-					 sizeof( uint32_t ) * nframes );
-		frame_len[ nframes ] = 0;
-		return frame_len;
-	}
-
-	char *get_packet( uint32_t len )
-	{
-		thread_local auto _ = std::vector<char>( 1024 );
+		thread_local auto _ = std::vector<uint8_t>( 1024 );
 		if ( len > _.size() ) {
 			_.resize( len );
 		}
@@ -186,10 +174,10 @@ public:
 	}
 
 private:
-	void decode_and_advance( char *data, int len, uint32_t flags = 0 )
+	void decode_and_advance( uint8_t *data, int len, uint32_t flags = 0 )
 	{
 		CUVIDSOURCEDATAPACKET packet = {};
-		packet.payload = reinterpret_cast<unsigned char *>( data );
+		packet.payload = data;
 		packet.payload_size = len;
 		packet.flags = flags;
 		if ( !data || len == 0 ) {
@@ -282,6 +270,7 @@ void VideoStreamPacket::copy_async( cufx::MemoryView1D<unsigned char> const &dst
 		int nbytes = std::min( _.decomp->width * rect[ i ].height - src_offset, int( length - copied ) );
 		if ( nbytes != 0 ) {
 			if ( _.src_pitch == _.decomp->width ) {
+				// vm::println( "copy!! to {}", (void *)( dp_dst + copied ) );
 				CUDA_DRVAPI_CALL( cuMemcpyAsync( ( CUdeviceptr )( dp_dst + copied ),
 												 rect[ i ].src + src_offset, nbytes, _.stream ) );
 				copied += nbytes;
@@ -295,6 +284,7 @@ void VideoStreamPacket::copy_async( cufx::MemoryView1D<unsigned char> const &dst
 				int back = src_offset + nbytes - y_length * width;
 
 				if ( front != 0 ) {
+					// vm::println( "copy to {}", (void *)( dp_dst + copied ) );
 					CUDA_DRVAPI_CALL( cuMemcpyAsync( ( CUdeviceptr )( dp_dst + copied ),
 													 rect[ i ].src + src_offset, front, _.stream ) );
 					copied += front;
@@ -310,10 +300,12 @@ void VideoStreamPacket::copy_async( cufx::MemoryView1D<unsigned char> const &dst
 					m.dstDevice = ( CUdeviceptr )( m.dstHost = dp_dst + copied );
 					m.Height = y_length - y_offset;
 
+					// vm::println( "copy to {}", (void *)( dp_dst + copied ) );
 					CUDA_DRVAPI_CALL( cuMemcpy2DAsync( &m, _.stream ) );  //ck
 					copied += m.WidthInBytes * m.Height;
 				}
 				if ( back != 0 ) {
+					// vm::println( "copy to {}", (void *)( dp_dst + copied ) );
 					CUDA_DRVAPI_CALL( cuMemcpyAsync( ( CUdeviceptr )( dp_dst + copied ),
 													 y_length * width, back, _.stream ) );
 					copied += back;
@@ -321,7 +313,8 @@ void VideoStreamPacket::copy_async( cufx::MemoryView1D<unsigned char> const &dst
 			}
 		}
 	}
-	vm::println( "copied {} -> buffer {}", copied, length );
+	CUDA_DRVAPI_CALL( cuStreamSynchronize( _.stream ) );
+	// vm::println( "copied {} -> buffer {}", copied, (void *)dp_dst );
 	// if ( copied > length ) {
 	// 	throw std::logic_error( vm::fmt( "copied {} > length {}", copied, length ) );
 	// }
@@ -336,12 +329,17 @@ void VideoDecompressorImpl::decompress( Reader &reader, Consumer const &consumer
 		  uint32_t frame_len;
 		  while ( reader.read( reinterpret_cast<char *>( &frame_len ), sizeof( uint32_t ) ) ) {
 			  auto packet = get_packet( frame_len );
-			  reader.read( packet, frame_len );
+			  reader.read( reinterpret_cast<char *>( packet ), frame_len );
+			  //   vm::println( "#dec: {} {} {} {} {} {} {} {} {} {} ...", int( packet[ 0 ] ), int( packet[ 1 ] ), int( packet[ 2 ] ),
+			  // 			   int( packet[ 3 ] ), int( packet[ 4 ] ), int( packet[ 5 ] ), int( packet[ 6 ] ),
+			  // 			   int( packet[ 7 ] ), int( packet[ 8 ] ), int( packet[ 9 ] ) );
 			  decode_and_advance( packet, frame_len );
 		  }
 		  decode_and_advance( nullptr, 0 );
-		  for ( int i = 0; i != io_queue_size; ++i ) {
-			  slots[ i ].unmap( decoder );
+		  if ( slots != nullptr ) {
+			  for ( int i = 0; i != io_queue_size; ++i ) {
+				  slots[ i ].unmap( decoder );
+			  }
 		  }
 	  } );
 }
@@ -435,8 +433,6 @@ int VideoDecompressorImpl::handle_video_sequence( CUVIDEOFORMAT *format )
 	NVDEC_API_CALL( cuvidCreateDecoder( &decoder, &info ) );
 	CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );
 
-	vm::println( "nvdec setup decoder" );
-
 	return io_queue_size;
 }
 
@@ -484,7 +480,7 @@ int VideoDecompressorImpl::handle_picture_display( CUVIDPARSERDISPINFO *info )
 		( *consumer )( packet );
 	}
 
-	CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );	 //ck
+	CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );  //ck
 
 	return 1;
 }

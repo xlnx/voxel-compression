@@ -110,6 +110,10 @@ VM_EXPORT
 		{
 			return x == other.x && y == other.y && z == other.z;
 		}
+		bool operator!=( Idx const &other ) const
+		{
+			return !( *this == other );
+		}
 
 		friend ostream &operator<<( ostream &os, Idx const &_ )
 		{

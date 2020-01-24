@@ -20,11 +20,11 @@ void add_blocks( vector<vector<char>> &blocks, size_t block_size, int nblocks = 
 	}
 }
 
-void accept_blocks( VideoCompressor &VideoCompressor, vector<vector<char>> &blocks, vector<tuple<size_t, size_t, size_t>> const &idx )
+void accept_blocks( VideoCompressor &video_compressor, vector<vector<char>> &blocks, vector<tuple<size_t, size_t, size_t>> const &idx )
 {
 	for ( int i = 0; i != blocks.size(); ++i ) {
 		auto &block = blocks[ i ];
-		auto acc = VideoCompressor.accept(
+		auto acc = video_compressor.accept(
 		  vm::Arc<Reader>( new SliceReader( block.data(), block.size() ) ) );
 		EXPECT_GE( acc.last_frame, acc.first_frame );
 		EXPECT_EQ( acc.first_frame, std::get<0>( idx[ i ] ) );
@@ -54,26 +54,26 @@ TEST( test_video_codec, simple )
 					   .set_width( width )
 					   .set_height( height )
 					   .set_batch_frames( batch_frames );
-	VideoCompressor VideoCompressor( compressed_writer, comp_opts );
-	ASSERT_EQ( VideoCompressor.frame_size(), frame_size );
+	VideoCompressor video_compressor( compressed_writer, comp_opts );
+	ASSERT_EQ( video_compressor.frame_size(), frame_size );
 
 	add_blocks( raw_input_blocks, block_size, 1 );
-	accept_blocks( VideoCompressor, raw_input_blocks,
+	accept_blocks( video_compressor, raw_input_blocks,
 				   { { 0, 0, 0 } } );
-	VideoCompressor.flush( true );
-	ASSERT_EQ( VideoCompressor.frame_count(), 1 );
+	video_compressor.flush( true );
+	ASSERT_EQ( video_compressor.frame_count(), 1 );
 
 	add_blocks( raw_input_blocks, block_size, 3 );
-	accept_blocks( VideoCompressor, raw_input_blocks,
+	accept_blocks( video_compressor, raw_input_blocks,
 				   { { 1, 1, 0 }, { 2, 2, 0 }, { 3, 3, 0 } } );
-	VideoCompressor.flush( true );
-	VideoCompressor.flush( true );
-	ASSERT_EQ( VideoCompressor.frame_count(), 4 );
+	video_compressor.flush( true );
+	video_compressor.flush( true );
+	ASSERT_EQ( video_compressor.frame_count(), 4 );
 
-	VideoCompressor.wait();
-	ASSERT_EQ( VideoCompressor.frame_count(), 4 );
+	video_compressor.wait();
+	ASSERT_EQ( video_compressor.frame_count(), 4 );
 
-	auto frame_offset = VideoCompressor.frame_offset();
+	auto frame_offset = video_compressor.frame_offset();
 
 	VideoDecompressor deVideoCompressor;
 	auto opts = VideoDecompressOptions{}
@@ -153,19 +153,19 @@ TEST( test_video_codec, compress_large_frame )
 					   .set_width( width )
 					   .set_height( height )
 					   .set_batch_frames( batch_frames );
-	VideoCompressor VideoCompressor( compressed_writer, comp_opts );
-	ASSERT_EQ( VideoCompressor.frame_size(), frame_size );
+	VideoCompressor video_compressor( compressed_writer, comp_opts );
+	ASSERT_EQ( video_compressor.frame_size(), frame_size );
 
 	add_blocks( raw_input_blocks, block_size, nblocks - 1 );
 	vector<tuple<size_t, size_t, size_t>> idx;
 	for ( int i = 0; i != nblocks - 1; ++i ) {
 		idx.emplace_back( 0, 0, block_size * i );
 	}
-	accept_blocks( VideoCompressor, raw_input_blocks, idx );
-	VideoCompressor.flush( true );
-	ASSERT_EQ( VideoCompressor.frame_count(), 0 );
-	VideoCompressor.wait();
-	ASSERT_EQ( VideoCompressor.frame_count(), 1 );
+	accept_blocks( video_compressor, raw_input_blocks, idx );
+	video_compressor.flush( true );
+	ASSERT_EQ( video_compressor.frame_count(), 0 );
+	video_compressor.wait();
+	ASSERT_EQ( video_compressor.frame_count(), 1 );
 
 	add_blocks( raw_input_blocks, block_size, nblocks * 3 );
 	idx.clear();
@@ -175,9 +175,9 @@ TEST( test_video_codec, compress_large_frame )
 		  1 + ( block_size * ( i + 1 ) + frame_size - 1 ) / frame_size - 1,
 		  block_size * i % frame_size );
 	}
-	accept_blocks( VideoCompressor, raw_input_blocks, idx );
-	VideoCompressor.wait();
-	ASSERT_EQ( VideoCompressor.frame_count(), 5 );
-	// vector<uint32_t> idx( VideoCompressor.frame_len() );
+	accept_blocks( video_compressor, raw_input_blocks, idx );
+	video_compressor.wait();
+	ASSERT_EQ( video_compressor.frame_count(), 5 );
+	// vector<uint32_t> idx( video_compressor.frame_len() );
 	// vm::println( "{}", idx );
 }
