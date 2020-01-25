@@ -41,6 +41,10 @@ VM_EXPORT
 
 		auto linked_reader = LinkedReader( readers );
 		linked_reader.seek( 0 );
+
+		vm::println( "readers.size() = {}", readers.size() );
+		vm::println( "linked_reader.size() = {}", linked_reader.size() );
+
 		int i = 0;
 		int64_t curr_block_offset = 0;
 		int64_t linked_read_pos = 0;

@@ -75,7 +75,7 @@ struct VideoCompressorImpl
 					auto part_reader = PartReader( linked_reader, 0, nframes_size );
 					part_reader.seek( 0 );
 					vector<uint32_t> frame_len;
-					// vm::println( "encode with {} blocks", input_readers.size() );
+					vm::println( "encode with {} blocks", input_readers.size() );
 					this->_->encode( part_reader, out, frame_len );
 					for ( auto &len : frame_len ) {
 						frame_offset.emplace_back( frame_offset.back() + len );

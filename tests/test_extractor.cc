@@ -64,6 +64,8 @@ void decompress_256( string const &raw_input_file, string const &h264_output_fil
 		packet.append_to( buffer_view );
 	} );
 
+	ASSERT_GT( res.size(), 0 );
+
 	RawReaderIO raw_input( raw_input_file, Size3( 256, 256, 256 ), sizeof( char ) );
 	vector<unsigned char> src_buffer( 64 * 64 * 64 );
 
@@ -80,14 +82,14 @@ void decompress_256( string const &raw_input_file, string const &h264_output_fil
 	}
 	vm::println( "max diff: {}", dt );
 	if ( dt > 30 ) {
-		for ( int i = 0; i != buffer.size() / 64; ++i ) {
+		for ( int i = 0; i != buffer.size() / ( 64 * 64 ); ++i ) {
 			vm::print( "{ >3} ", int( buffer[ i ] ) );
 			if ( i % 16 == 15 ) {
 				vm::println( "" );
 			}
 		}
 		vm::println( "" );
-		for ( int i = 0; i != buffer.size() / 64; ++i ) {
+		for ( int i = 0; i != buffer.size() / ( 64 * 64 ); ++i ) {
 			vm::print( "{ >3} ", int( src_buffer[ i ] ) );
 			if ( i % 16 == 15 ) {
 				vm::println( "" );
@@ -189,9 +191,9 @@ TEST( test_extractor, urandom )
 	auto raw_input_file = "./test_data/urandom_256x256x256_uint8.raw";
 	auto h264_output_file = "./test.urandom_256x256x256_uint8.h264";
 	compress_256( raw_input_file, h264_output_file );
-	decompress_256( raw_input_file, h264_output_file, { 0, 0, 0 } );
-	decompress_256( raw_input_file, h264_output_file, { 1, 0, 0 } );
-	decompress_256( raw_input_file, h264_output_file, { 2, 0, 0 } );
+	// decompress_256( raw_input_file, h264_output_file, { 0, 0, 0 } );
+	// decompress_256( raw_input_file, h264_output_file, { 1, 0, 0 } );
+	// decompress_256( raw_input_file, h264_output_file, { 2, 0, 0 } );
 	decompress_256( raw_input_file, h264_output_file, { 3, 0, 0 } );
 	decompress_256( raw_input_file, h264_output_file, { 0, 1, 0 } );
 	// decompress_256( raw_input_file, h264_output_file, { 3, 3, 3 } );

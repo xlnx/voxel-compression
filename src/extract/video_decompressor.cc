@@ -174,17 +174,7 @@ public:
 	}
 
 private:
-	void decode_and_advance( uint8_t *data, int len, uint32_t flags = 0 )
-	{
-		CUVIDSOURCEDATAPACKET packet = {};
-		packet.payload = data;
-		packet.payload_size = len;
-		packet.flags = flags;
-		if ( !data || len == 0 ) {
-			packet.flags |= CUVID_PKT_ENDOFSTREAM;
-		}
-		NVDEC_API_CALL( cuvidParseVideoData( parser, &packet ) );
-	}
+	void decode_and_advance( uint8_t *data, int len, uint32_t flags = 0 );
 
 private:
 	/* nvidia video parser callbacks */
@@ -314,7 +304,7 @@ void VideoStreamPacket::copy_async( cufx::MemoryView1D<unsigned char> const &dst
 		}
 	}
 	CUDA_DRVAPI_CALL( cuStreamSynchronize( _.stream ) );
-	// vm::println( "copied {} -> buffer {}", copied, (void *)dp_dst );
+	vm::println( "copied {} -> buffer {}", copied, (void *)dp_dst );
 	// if ( copied > length ) {
 	// 	throw std::logic_error( vm::fmt( "copied {} > length {}", copied, length ) );
 	// }
@@ -330,13 +320,15 @@ void VideoDecompressorImpl::decompress( Reader &reader, Consumer const &consumer
 		  while ( reader.read( reinterpret_cast<char *>( &frame_len ), sizeof( uint32_t ) ) ) {
 			  auto packet = get_packet( frame_len );
 			  reader.read( reinterpret_cast<char *>( packet ), frame_len );
-			  //   vm::println( "#dec: {} {} {} {} {} {} {} {} {} {} ...", int( packet[ 0 ] ), int( packet[ 1 ] ), int( packet[ 2 ] ),
-			  // 			   int( packet[ 3 ] ), int( packet[ 4 ] ), int( packet[ 5 ] ), int( packet[ 6 ] ),
-			  // 			   int( packet[ 7 ] ), int( packet[ 8 ] ), int( packet[ 9 ] ) );
+			  vm::println( "#dec_src: { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} ...", int( packet[ 0 ] ), int( packet[ 1 ] ), int( packet[ 2 ] ),
+						   int( packet[ 3 ] ), int( packet[ 4 ] ), int( packet[ 5 ] ), int( packet[ 6 ] ),
+						   int( packet[ 7 ] ), int( packet[ 8 ] ), int( packet[ 9 ] ) );
 			  decode_and_advance( packet, frame_len );
 		  }
 		  decode_and_advance( nullptr, 0 );
+		  vm::println( "io_queue_size = {}, slots = {}, this = {}", io_queue_size, slots.get(), this );
 		  if ( slots != nullptr ) {
+			  vm::println( "slots != nullptr" );
 			  for ( int i = 0; i != io_queue_size; ++i ) {
 				  slots[ i ].unmap( decoder );
 			  }
@@ -344,8 +336,66 @@ void VideoDecompressorImpl::decompress( Reader &reader, Consumer const &consumer
 	  } );
 }
 
+void VideoDecompressorImpl::decode_and_advance( uint8_t *data, int len, uint32_t flags )
+{
+	vm::println( "{}", len );
+	CUVIDSOURCEDATAPACKET packet = {};
+	packet.payload = data;
+	packet.payload_size = len;
+	packet.flags = flags;
+	if ( !data || len == 0 ) {
+		packet.flags |= CUVID_PKT_ENDOFSTREAM;
+	}
+	NVDEC_API_CALL( cuvidParseVideoData( parser, &packet ) );
+}
+
+int VideoDecompressorImpl::handle_picture_display( CUVIDPARSERDISPINFO *info )
+{
+	const auto pid = info->picture_index;
+
+	CUVIDPROCPARAMS params = {};
+	params.progressive_frame = info->progressive_frame;
+	params.second_field = info->repeat_first_field + 1;
+	params.top_field_first = info->top_field_first;
+	params.unpaired_field = info->repeat_first_field < 0;
+	params.output_stream = slots[ pid ].stream;
+
+	CUdeviceptr dp_src = 0;
+	unsigned int src_pitch = 0;
+
+	vm::println( "pid = {}", pid );
+	slots[ pid ].unmap( decoder );
+	auto evt = slots[ pid ].map( decoder, pid, &dp_src, &src_pitch, &params );
+	// vm::println( "map {}", dp_src );
+
+	CUVIDGETDECODESTATUS stat = {};
+	CUresult result = cuvidGetDecodeStatus( decoder, pid, &stat );
+	if ( result == CUDA_SUCCESS &&
+		 ( stat.decodeStatus == cuvidDecodeStatus_Error ||
+		   stat.decodeStatus == cuvidDecodeStatus_Error_Concealed ) ) {
+		vm::println( "decode error occurred" );
+	}
+
+	CUDA_DRVAPI_CALL( cuCtxPushCurrent( ctx ) );  //ck
+
+	{
+		VideoStreamPacketImpl packet_impl{ dp_src, src_pitch, slots[ pid ].stream, this };
+		VideoStreamPacket packet( packet_impl );
+		packet.length = width * ( luma_height + chroma_height );
+		packet.id = packet_id++;
+		packet.release_event = evt;
+		( *consumer )( packet );
+	}
+
+	CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );  //ck
+
+	return 1;
+}
+
 int VideoDecompressorImpl::handle_video_sequence( CUVIDEOFORMAT *format )
 {
+	vm::println( "handle video sequence" );
+
 	if ( decoder ) return io_queue_size;
 
 	if ( format->min_num_decode_surfaces > io_queue_size ) {
@@ -439,49 +489,6 @@ int VideoDecompressorImpl::handle_video_sequence( CUVIDEOFORMAT *format )
 int VideoDecompressorImpl::handle_picture_decode( CUVIDPICPARAMS *params )
 {
 	NVDEC_API_CALL( cuvidDecodePicture( decoder, params ) );
-	return 1;
-}
-
-int VideoDecompressorImpl::handle_picture_display( CUVIDPARSERDISPINFO *info )
-{
-	const auto pid = info->picture_index;
-
-	CUVIDPROCPARAMS params = {};
-	params.progressive_frame = info->progressive_frame;
-	params.second_field = info->repeat_first_field + 1;
-	params.top_field_first = info->top_field_first;
-	params.unpaired_field = info->repeat_first_field < 0;
-	params.output_stream = slots[ pid ].stream;
-
-	CUdeviceptr dp_src = 0;
-	unsigned int src_pitch = 0;
-
-	// vm::println( "pid = {}", pid );
-	slots[ pid ].unmap( decoder );
-	auto evt = slots[ pid ].map( decoder, pid, &dp_src, &src_pitch, &params );
-	// vm::println( "map {}", dp_src );
-
-	CUVIDGETDECODESTATUS stat = {};
-	CUresult result = cuvidGetDecodeStatus( decoder, pid, &stat );
-	if ( result == CUDA_SUCCESS &&
-		 ( stat.decodeStatus == cuvidDecodeStatus_Error ||
-		   stat.decodeStatus == cuvidDecodeStatus_Error_Concealed ) ) {
-		vm::println( "decode error occurred" );
-	}
-
-	CUDA_DRVAPI_CALL( cuCtxPushCurrent( ctx ) );  //ck
-
-	{
-		VideoStreamPacketImpl packet_impl{ dp_src, src_pitch, slots[ pid ].stream, this };
-		VideoStreamPacket packet( packet_impl );
-		packet.length = width * ( luma_height + chroma_height );
-		packet.id = packet_id++;
-		packet.release_event = evt;
-		( *consumer )( packet );
-	}
-
-	CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );  //ck
-
 	return 1;
 }
 

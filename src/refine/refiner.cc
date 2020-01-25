@@ -191,7 +191,7 @@ public:
 		vm::println( "read region(raw): {} {}", raw_region_start, raw_region_size );
 		vm::println( "read region: {} {}", region_start, region_size );
 
-		vm::println( "overflow: {#x}", overflow );
+		vm::println( "overflow: { >#x2}", overflow );
 		vm::println( "dxy: {}", Vec2i( dx, dy ) );
 
 		/* always read region into buffer[0..] */
@@ -242,7 +242,7 @@ public:
 								   .set_y( blkid / dim.x % dim.y )
 								   .set_z( blkid / ( dim.x * dim.y ) % dim.z );
 				// auto dp = reinterpret_cast<uint8_t *>( dst );
-				// vm::println( "${}: {} {} {} {} {} {} {} {} {} {}...", blkid, int( dp[ 0 ] ), int( dp[ 1 ] ), int( dp[ 2 ] ),
+				// vm::println( "${}: { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} ...", blkid, int( dp[ 0 ] ), int( dp[ 1 ] ), int( dp[ 2 ] ),
 				// 			 int( dp[ 3 ] ), int( dp[ 4 ] ), int( dp[ 5 ] ), int( dp[ 6 ] ),
 				// 			 int( dp[ 7 ] ), int( dp[ 8 ] ), int( dp[ 9 ] ) );
 				block_idx[ idx ] = video_compressor.accept(
