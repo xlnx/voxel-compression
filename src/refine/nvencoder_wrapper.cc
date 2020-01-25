@@ -125,7 +125,7 @@ void NvEncoderWrapper::encode( Reader &reader, Writer &out, std::vector<uint32_t
 											  encoderInputFrame->bufferFormat,
 											  encoderInputFrame->chromaOffsets,
 											  encoderInputFrame->numChromaPlanes );
-			_.EncodeFrame( vPacket, nFrame ? nullptr : &params );
+			_.EncodeFrame( vPacket, &params );
 		} else {
 			_.EndEncode( vPacket );
 		}
@@ -137,10 +137,10 @@ void NvEncoderWrapper::encode( Reader &reader, Writer &out, std::vector<uint32_t
 			uint32_t len = packet.size();
 			out.write( reinterpret_cast<char *>( &len ), sizeof( len ) );
 			out.write( packet_begin, packet.size() );
-			vm::println( "#enc_dst {} -> len {}: { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} ...",
-						 frame_len.size(), packet.size(), int( packet[ 0 ] ), int( packet[ 1 ] ), int( packet[ 2 ] ),
-						 int( packet[ 3 ] ), int( packet[ 4 ] ), int( packet[ 5 ] ), int( packet[ 6 ] ),
-						 int( packet[ 7 ] ), int( packet[ 8 ] ), int( packet[ 9 ] ) );
+			// vm::println( "#enc_dst {} -> len {}: { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} ...",
+			// 			 frame_len.size(), packet.size(), int( packet[ 0 ] ), int( packet[ 1 ] ), int( packet[ 2 ] ),
+			// 			 int( packet[ 3 ] ), int( packet[ 4 ] ), int( packet[ 5 ] ), int( packet[ 6 ] ),
+			// 			 int( packet[ 7 ] ), int( packet[ 8 ] ), int( packet[ 9 ] ) );
 			frame_len.emplace_back( sizeof( len ) + packet.size() );
 		}
 
