@@ -32,7 +32,7 @@ VM_EXPORT
 				 sorted_blocks[ i + 1 ]->second.first_frame > curr_block.last_frame ) {
 				auto beg = frame_offset[ prev_block.first_frame ];
 				auto len = frame_offset[ curr_block.last_frame + 1 ] - beg;
-				vm::println( "{} -> {} = {}", sorted_blocks[ i ]->first, make_pair( beg, len ), make_pair( prev_block.first_frame, curr_block.last_frame + 1 ) );
+				// vm::println( "{} -> {} = {}", sorted_blocks[ i ]->first, make_pair( beg, len ), make_pair( prev_block.first_frame, curr_block.last_frame + 1 ) );
 				readers.emplace_back( vm::Arc<Reader>( new PartReader( content, beg, len ) ) );
 				frame_count += curr_block.last_frame - prev_block.first_frame + 1;
 				prev = i + 1;
@@ -41,6 +41,7 @@ VM_EXPORT
 
 		auto linked_reader = LinkedReader( readers );
 		linked_reader.seek( 0 );
+
 		int i = 0;
 		int64_t curr_block_offset = 0;
 		int64_t linked_read_pos = 0;
