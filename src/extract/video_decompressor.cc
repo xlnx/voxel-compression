@@ -320,9 +320,10 @@ void VideoDecompressorImpl::decompress( Reader &reader, Consumer const &consumer
 		  while ( reader.read( reinterpret_cast<char *>( &frame_len ), sizeof( uint32_t ) ) ) {
 			  auto packet = get_packet( frame_len );
 			  reader.read( reinterpret_cast<char *>( packet ), frame_len );
-			  //   vm::println( "#dec_src: { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} ...", int( packet[ 0 ] ), int( packet[ 1 ] ), int( packet[ 2 ] ),
-			  // 			   int( packet[ 3 ] ), int( packet[ 4 ] ), int( packet[ 5 ] ), int( packet[ 6 ] ),
-			  // 			   int( packet[ 7 ] ), int( packet[ 8 ] ), int( packet[ 9 ] ) );
+			  //   vm::println( "#dec_src: { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} ...",
+			  // 			   int( packet[ 48 + 0 ] ), int( packet[ 48 + 1 ] ), int( packet[ 48 + 2 ] ),
+			  // 			   int( packet[ 48 + 3 ] ), int( packet[ 48 + 4 ] ), int( packet[ 48 + 5 ] ), int( packet[ 48 + 6 ] ),
+			  // 			   int( packet[ 48 + 7 ] ), int( packet[ 48 + 8 ] ), int( packet[ 48 + 9 ] ) );
 			  decode_and_advance( packet, frame_len );
 		  }
 		  decode_and_advance( nullptr, 0 );

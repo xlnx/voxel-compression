@@ -100,7 +100,7 @@ void NvEncoderWrapper::encode( Reader &reader, Writer &out, std::vector<uint32_t
 	std::unique_ptr<uint8_t[]> pHostFrame( new uint8_t[ nFrameSize ] );
 	int nFrame = 0;
 
-	thread_local auto params = [] {
+	static auto params = [] {
 		NV_ENC_PIC_PARAMS params;
 		params.encodePicFlags = NV_ENC_PIC_FLAG_OUTPUT_SPSPPS |
 								NV_ENC_PIC_FLAG_FORCEIDR;
@@ -113,7 +113,8 @@ void NvEncoderWrapper::encode( Reader &reader, Writer &out, std::vector<uint32_t
 		// Load the next frame from disk
 		auto nRead = reader.read( reinterpret_cast<char *>( pHostFrame.get() ), nFrameSize );
 		if ( nRead == nFrameSize ) {
-			// vm::println( "#enc_src{}: { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} ...", nFrame, int( pHostFrame[ 0 ] ), int( pHostFrame[ 1 ] ), int( pHostFrame[ 2 ] ),
+			// vm::println( "#enc_src: { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} ...",
+			// 			 int( pHostFrame[ 0 ] ), int( pHostFrame[ 1 ] ), int( pHostFrame[ 2 ] ),
 			// 			 int( pHostFrame[ 3 ] ), int( pHostFrame[ 4 ] ), int( pHostFrame[ 5 ] ), int( pHostFrame[ 6 ] ),
 			// 			 int( pHostFrame[ 7 ] ), int( pHostFrame[ 8 ] ), int( pHostFrame[ 9 ] ) );
 			const NvEncInputFrame *encoderInputFrame = _.GetNextInputFrame();
@@ -138,9 +139,9 @@ void NvEncoderWrapper::encode( Reader &reader, Writer &out, std::vector<uint32_t
 			out.write( reinterpret_cast<char *>( &len ), sizeof( len ) );
 			out.write( packet_begin, packet.size() );
 			// vm::println( "#enc_dst {} -> len {}: { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} { >#x2} ...",
-			// 			 frame_len.size(), packet.size(), int( packet[ 0 ] ), int( packet[ 1 ] ), int( packet[ 2 ] ),
-			// 			 int( packet[ 3 ] ), int( packet[ 4 ] ), int( packet[ 5 ] ), int( packet[ 6 ] ),
-			// 			 int( packet[ 7 ] ), int( packet[ 8 ] ), int( packet[ 9 ] ) );
+			// 			 frame_len.size(), packet.size(), int( packet[ 48 + 0 ] ), int( packet[ 48 + 1 ] ), int( packet[ 48 + 2 ] ),
+			// 			 int( packet[ 48 + 3 ] ), int( packet[ 48 + 4 ] ), int( packet[ 48 + 5 ] ), int( packet[ 48 + 6 ] ),
+			// 			 int( packet[ 48 + 7 ] ), int( packet[ 48 + 8 ] ), int( packet[ 48 + 9 ] ) );
 			frame_len.emplace_back( sizeof( len ) + packet.size() );
 		}
 

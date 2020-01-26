@@ -26,13 +26,70 @@ void compress_256( string const &raw_input_file, string const &h264_output_file 
 	opts.compress_opts
 	  .set_encode_preset( EncodePreset::Default )
 	  .set_pixel_format( PixelFormat::NV12 )
-	  .set_width( 2048 )
-	  .set_height( 2048 )
+	  .set_width( 512 )
+	  .set_height( 512 )
 	  .set_batch_frames( 4 );
 	{
 		Refiner refiner( opts );
 		refiner.convert();
 	}
+}
+
+bool compare_block( Extractor &extractor, string const &raw_input_file, Idx const &idx )
+{
+	const auto N = extractor.block_size();
+	const auto N_3 = N * N * N;
+	const auto raw = extractor.raw();
+
+	vector<unsigned char> buffer( N_3 );
+	cufx::MemoryView1D<unsigned char> buffer_view( buffer.data(), buffer.size() );
+
+	RawReaderIO raw_input( raw_input_file, Size3( raw.x, raw.y, raw.z ), sizeof( char ) );
+	vector<unsigned char> src_buffer( N_3 );
+
+	vector<tuple<Idx, unsigned, unsigned, unsigned, unsigned, unsigned>> packets;
+	extractor.batch_extract( { idx }, [&]( Idx const &idx, VoxelStreamPacket const &packet ) {
+		packets.emplace_back( idx, packet.offset, packet.inner_offset,
+							  packet.length, packet._.id, packet._.length );
+		packet.append_to( buffer_view );
+	} );
+
+	auto begin = Vec3i( idx.x, idx.y, idx.z ) * N;
+	raw_input.readRegion( begin, Size3( N, N, N ), src_buffer.data() );
+	double s = 0, a = 0, m = 0;
+	for ( int i = 0; i != buffer.size(); ++i ) {
+		auto dt = double( buffer[ i ] - src_buffer[ i ] );
+		a += src_buffer[ i ];
+		m = std::max( std::abs( dt ), m );
+		s += dt * dt;
+	}
+	s = std::sqrt( s / buffer.size() );
+	a /= buffer.size();
+	vm::println( "block = {}, stddev = {}, avg = {}, maxdiff = {}", idx, s, a, m );
+
+	const double threshold = 10;
+	if ( s < threshold ) { return true; }
+
+	for ( auto &packet : packets ) {
+		auto [ idx, offset, inner_offset, length, raw_id, raw_length ] = packet;
+		println( "pos = {}, slice = {}", offset, make_pair( inner_offset, length ) );
+	}
+	println( "given:" );
+	for ( int i = 0; i != buffer.size() / ( N * N ); ++i ) {
+		vm::print( "{ >#x2} ", int( buffer[ i ] ) );
+		if ( i % 16 == 15 ) {
+			vm::println( "" );
+		}
+	}
+	println( "expected:" );
+	for ( int i = 0; i != buffer.size() / ( N * N ); ++i ) {
+		vm::print( "{ >#x2} ", int( src_buffer[ i ] ) );
+		if ( i % 16 == 15 ) {
+			vm::println( "" );
+		}
+	}
+	vm::println( "" );
+	return false;
 }
 
 void decompress_256( string const &raw_input_file, string const &h264_output_file )
@@ -52,134 +109,13 @@ void decompress_256( string const &raw_input_file, string const &h264_output_fil
 	EXPECT_EQ( extractor.block_inner(), 64 );
 	EXPECT_EQ( extractor.padding(), 0 );
 
-	vector<unsigned char> buffer( 64 * 64 * 64 );
-	cufx::MemoryView1D<unsigned char> buffer_view( buffer.data(), buffer.size() );
-
-	RawReaderIO raw_input( raw_input_file, Size3( 256, 256, 256 ), sizeof( char ) );
-	vector<unsigned char> src_buffer( 64 * 64 * 64 );
-
 	for ( uint32_t i = 0; i != 4; ++i ) {
 		for ( uint32_t j = 0; j != 4; ++j ) {
 			for ( uint32_t k = 0; k != 4; ++k ) {
-				// decompress_256( raw_input_file, h264_output_file, { i, j, k } );
-				vector<tuple<Idx, unsigned, unsigned, unsigned, unsigned, unsigned>> res;
-				extractor.batch_extract( { { i, j, k } }, [&]( Idx const &idx, VoxelStreamPacket const &packet ) {
-					res.emplace_back( idx, packet.offset, packet.inner_offset,
-									  packet.length, packet._.id, packet._.length );
-					packet.append_to( buffer_view );
-				} );
-				ASSERT_GT( res.size(), 0 );
-
-				auto begin = Vec3i( i, j, k ) * 64;
-				raw_input.readRegion( begin, Size3( 64, 64, 64 ), src_buffer.data() );
-				// const auto slice_idx = 58 * 64 + 8;
-				// const auto slice_size = buffer.size() / 64 / 64;
-				// vm::println( "{}", (void *)buffer.data() );
-				// for ( int i = slice_idx * slice_size, j = 0; i != ( slice_idx + 1 ) * slice_size; ++i, j = ( j + 1 ) % 8 ) {
-				double s = 0;
-				for ( int i = 0; i != buffer.size(); ++i ) {
-					auto dt = double( buffer[ i ] - src_buffer[ i ] );
-					s += dt * dt;
-				}
-				s = std::sqrt( s / buffer.size() );
-				vm::println( "stddev = {}", s );
-				const double threshold = 10;
-				ASSERT_LT( s, threshold );
-				if ( s > threshold ) {
-					vm::println( "BLOCK = ({}, {}, {}):", i, j, k );
-					for ( int i = 0; i != buffer.size() / ( 64 * 64 ); ++i ) {
-						vm::print( "{ >3} ", int( buffer[ i ] ) );
-						if ( i % 16 == 15 ) {
-							vm::println( "" );
-						}
-					}
-					vm::println( "" );
-					for ( int i = 0; i != buffer.size() / ( 64 * 64 ); ++i ) {
-						vm::print( "{ >3} ", int( src_buffer[ i ] ) );
-						if ( i % 16 == 15 ) {
-							vm::println( "" );
-						}
-					}
-				}
+				EXPECT_TRUE( compare_block( extractor, raw_input_file, { i, j, k } ) );
 			}
 		}
 	}
-}
-
-TEST( test_extractor, simple )
-{
-	// auto raw_input_file = "./test_data/aneurism_256x256x256_uint8.raw";
-	// auto h264_output_file = "./test.aneurism_256x256x256_uint8.h264";
-	// auto opts = vol::RefinerOptions{}
-	// 			  .set_x( 256 )
-	// 			  .set_y( 256 )
-	// 			  .set_z( 256 )
-	// 			  .set_log_block_size( 6 )  // 64
-	// 			  .set_padding( 2 )
-	// 			  .set_suggest_mem_gb( 4 )
-	// 			  .set_input( raw_input_file )
-	// 			  .set_output( h264_output_file );
-	// opts.compress_opts
-	//   .set_encode_preset( EncodePreset::Default )
-	//   .set_pixel_format( PixelFormat::NV12 )
-	//   .set_width( 256 )
-	//   .set_height( 256 )
-	//   .set_batch_frames( 4 );
-	// {
-	// 	Refiner refiner( opts );
-	// 	refiner.convert();
-	// }
-
-	// ifstream is( h264_output_file, ios::binary );
-	// is.seekg( 0, is.end );
-	// vm::println( "file size: {}", is.tellg() );
-	// StreamReader reader( is, 0, is.tellg() );
-	// reader.seek( 0 );
-	// ASSERT_EQ( reader.tell(), 0 );
-	// Extractor extractor( reader );
-	// EXPECT_EQ( extractor.raw(), ( Idx{ 256, 256, 256 } ) );
-	// EXPECT_EQ( extractor.dim(), ( Idx{ 5, 5, 5 } ) );
-	// EXPECT_EQ( extractor.adjusted(), ( Idx{ 320, 320, 320 } ) );
-	// EXPECT_EQ( extractor.log_block_size(), 6 );
-	// EXPECT_EQ( extractor.block_size(), 64 );
-	// EXPECT_EQ( extractor.block_inner(), 60 );
-	// EXPECT_EQ( extractor.padding(), 2 );
-
-	// vector<Idx> blocks = { { 0, 0, 0 }, { 2, 2, 2 } };
-
-	// vector<unsigned char> buffer( 64 * 64 * 64 );
-	// vector<tuple<Idx, unsigned, unsigned, unsigned, unsigned, unsigned>> res;
-	// cufx::MemoryView1D<unsigned char> buffer_view( buffer.data(), buffer.size() );
-	// extractor.batch_extract( blocks, [&]( Idx const &idx, VoxelStreamPacket const &packet ) {
-	// 	res.emplace_back( idx, packet.offset, packet.inner_offset,
-	// 					  packet.length, packet._.id, packet._.length );
-	// 	if ( idx != Idx{ 0, 0, 0 } ) {
-	// 		packet.append_to( buffer_view );
-	// 	}
-	// } );
-	// // ASSERT_EQ( res,
-	// // 		   ( vector<tuple<Idx, unsigned, unsigned, unsigned, unsigned, unsigned>>{
-	// // 			 { { 0, 0, 0 }, 0, 0, 98304, 0, 98304 },
-	// // 			 { { 0, 0, 0 }, 98304, 0, 98304, 1, 98304 },
-	// // 			 { { 0, 0, 0 }, 98304 * 2, 0, 65536, 2, 98304 },
-	// // 			 { { 2, 2, 2 }, 0, 0, 98304, 3, 98304 },
-	// // 			 { { 2, 2, 2 }, 98304, 0, 98304, 4, 98304 },
-	// // 			 { { 2, 2, 2 }, 98304 * 2, 0, 65536, 5, 98304 } } ) );
-
-	// RawReaderIO raw_input( raw_input_file, Size3( 256, 256, 256 ), sizeof( char ) );
-	// vector<unsigned char> src_buffer( 64 * 64 * 64 );
-	// raw_input.readRegion( Vec3i( 118, 118, 118 ), Size3( 64, 64, 64 ), src_buffer.data() );
-	// const auto slice_idx = 58 * 64 + 8;
-	// const auto slice_size = buffer.size() / 64 / 64;
-	// vm::println( "{}", (void *)buffer.data() );
-	// for ( int i = slice_idx * slice_size, j = 0; i != ( slice_idx + 1 ) * slice_size; ++i, j = ( j + 1 ) % 8 ) {
-	// 	// vm::print( "{} ", int( src_buffer[ i ] ) );
-	// 	vm::print( "{}  ", make_pair( int( buffer[ i ] ), int( src_buffer[ i ] ) ) );
-	// 	if ( j == 7 ) {
-	// 		vm::println( "" );
-	// 	}
-	// 	// ASSERT_LT( std::abs( buffer[ i ] - src_buffer[ i ] ), 100 );
-	// }
 }
 
 TEST( test_extractor, aneurism )

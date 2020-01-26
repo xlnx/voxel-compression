@@ -52,6 +52,7 @@ struct VideoCompressorImpl
 				if ( should_flush ) {
 					should_flush = false;
 				}
+				vm::println( "acquired {} readers", readers.size() );
 				input_readers.swap( readers );
 				auto nframes = total_size / frame_size;
 				nframes_size = nframes * frame_size;
@@ -65,17 +66,19 @@ struct VideoCompressorImpl
 						// vm::println( "!!{}", readers.size() );
 					}
 				}
+				vm::println( "saved {} readers", readers.size() );
 				total_size -= nframes_size;
 				emitted_frames += nframes;
 			}
 			{
 				unique_lock<mutex> work_lk( work_mut );
 				if ( input_readers.size() ) {
+					auto offset = input_readers[ 0 ]->tell();
 					auto linked_reader = LinkedReader( input_readers );
-					auto part_reader = PartReader( linked_reader, 0, nframes_size );
+					auto part_reader = PartReader( linked_reader, offset, nframes_size );
 					part_reader.seek( 0 );
 					vector<uint32_t> frame_len;
-					vm::println( "encode with {} blocks", input_readers.size() );
+					// vm::println( "encode with {} blocks", input_readers.size() );
 					this->_->encode( part_reader, out, frame_len );
 					for ( auto &len : frame_len ) {
 						frame_offset.emplace_back( frame_offset.back() + len );
