@@ -13,17 +13,17 @@ vm_external_module(
 find_package(CUDA)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
 
-option(VOCOMP_BUILD_REFINER "build refiner library" ON)
-option(VOCOMP_BUILD_EXTRACTOR "build extractor library" ON)
-option(VOCOMP_BUILD_TOOLS "build tools" ON)
-option(VOCOMP_BUILD_TESTS "build tests" OFF)
+option(VARCH_BUILD_ARCHIVER "build archiver library" ON)
+option(VARCH_BUILD_UNARCHIVER "build unarchiver library" ON)
+option(VARCH_BUILD_TOOLS "build tools" ON)
+option(VARCH_BUILD_TESTS "build tests" OFF)
 
 add_subdirectory(src)
 
-if(VOCOMP_BUILD_TOOLS)
+if(VARCH_BUILD_TOOLS)
   add_subdirectory(tools)
 endif()
 
-if(VOCOMP_BUILD_TESTS)
+if(VARCH_BUILD_TESTS)
   add_subdirectory(tests)
 endif()

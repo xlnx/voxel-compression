@@ -1,7 +1,7 @@
 #include <iostream>
 #include <string>
 #include <VMUtils/cmdline.hpp>
-#include <vocomp/refiner.hpp>
+#include <varch/archiver.hpp>
 
 #ifdef WIN32
 #include <windows.h>
@@ -56,7 +56,7 @@ int main( int argc, char **argv )
 	auto mem = a.get<size_t>( "memlimit" );
 
 	try {
-		auto opts = RefinerOptions{}
+		auto opts = ArchiverOptions{}
 					  .set_x( x )
 					  .set_y( y )
 					  .set_z( z )
@@ -93,9 +93,9 @@ int main( int argc, char **argv )
 		opts.set_output( vm::fmt( "{}.{}.comp", output, comp ) );
 
 		{
-			Refiner refiner( opts );
+			Archiver archiver( opts );
 
-			refiner.convert();
+			archiver.convert();
 
 			vm::println( "written to {}", output );
 		}

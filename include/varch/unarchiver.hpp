@@ -2,8 +2,8 @@
 
 #include <VMUtils/nonnull.hpp>
 #include <cudafx/memory.hpp>
-#include <vocomp/utils/common.hpp>
-#include <vocomp/video_decompressor.hpp>
+#include <varch/utils/common.hpp>
+#include <varch/video_decompressor.hpp>
 
 VM_BEGIN_MODULE( vol )
 
@@ -42,14 +42,14 @@ VM_EXPORT
 		unsigned inner_offset;
 	};
 
-	struct ExtractorOptions
+	struct UnarchiverOptions
 	{
 		VM_DEFINE_ATTRIBUTE( unsigned, io_queue_size ) = 4;
 	};
 
-	struct Extractor final : vm::NoCopy
+	struct Unarchiver final : vm::NoCopy
 	{
-		Extractor( Reader &reader, ExtractorOptions const &opts = {} ) :
+		Unarchiver( Reader &reader, UnarchiverOptions const &opts = {} ) :
 		  content( reader, sizeof( Header ), reader.size() - sizeof( Header ) ),
 		  decomp( [this, &reader, &opts] {
 			  reader.read_typed( header );
@@ -68,7 +68,7 @@ VM_EXPORT
 			content.seek( 0 );
 		}
 		// block_idx ->
-		void batch_extract( std::vector<Idx> const &blocks,
+		void batch_unarchive( std::vector<Idx> const &blocks,
 							std::function<void( Idx const &idx, VoxelStreamPacket const & )> const &consumer );
 
 		auto raw() const { return header.raw; }

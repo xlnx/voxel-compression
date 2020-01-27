@@ -1,10 +1,10 @@
 #include <numeric>
 #include <thread>
 #include <condition_variable>
-#include <vocomp/utils/linked_reader.hpp>
-#include <vocomp/utils/padded_reader.hpp>
-#include <vocomp/utils/filter_reader.hpp>
-#include <vocomp/utils/self_owned_reader.hpp>
+#include <varch/utils/linked_reader.hpp>
+#include <varch/utils/padded_reader.hpp>
+#include <varch/utils/filter_reader.hpp>
+#include <varch/utils/self_owned_reader.hpp>
 #include "nvencoder_wrapper.hpp"
 #include "video_compressor.hpp"
 

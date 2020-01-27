@@ -5,15 +5,15 @@
 #include <atomic>
 #include <ciso646>
 #include <VMUtils/nonnull.hpp>
-#include <vocomp/utils/common.hpp>
+#include <varch/utils/common.hpp>
 
 VM_BEGIN_MODULE( vol )
 
-struct RefinerImpl;
+struct ArchiverImpl;
 
 VM_EXPORT
 {
-	struct RefinerOptions
+	struct ArchiverOptions
 	{
 		VM_DEFINE_ATTRIBUTE( size_t, x );
 		VM_DEFINE_ATTRIBUTE( size_t, y );
@@ -26,14 +26,14 @@ VM_EXPORT
 		VM_DEFINE_ATTRIBUTE( size_t, suggest_mem_gb ) = 128;
 	};
 
-	struct Refiner final : vm::NoCopy
+	struct Archiver final : vm::NoCopy
 	{
-		Refiner( RefinerOptions const &opts );
-		~Refiner();
+		Archiver( ArchiverOptions const &opts );
+		~Archiver();
 		bool convert();
 
 	private:
-		vm::Box<RefinerImpl> _;
+		vm::Box<ArchiverImpl> _;
 	};
 }
 

@@ -3,8 +3,8 @@
 #include <VMUtils/nonnull.hpp>
 #include <VMUtils/concepts.hpp>
 #include <VMUtils/attributes.hpp>
-#include <vocomp/utils/common.hpp>
-#include <vocomp/utils/io.hpp>
+#include <varch/utils/common.hpp>
+#include <varch/utils/io.hpp>
 
 VM_BEGIN_MODULE( vol )
 

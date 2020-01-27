@@ -1,4 +1,4 @@
-#include <vocomp/video_decompressor.hpp>
+#include <varch/video_decompressor.hpp>
 
 #include <atomic>
 #include <cudafx/driver/context.hpp>

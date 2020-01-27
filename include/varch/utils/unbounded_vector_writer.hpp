@@ -1,7 +1,7 @@
 #include <vector>
 #include <numeric>
-#include <vocomp/utils/io.hpp>
-#include <vocomp/utils/unbounded_io.hpp>
+#include <varch/utils/io.hpp>
+#include <varch/utils/unbounded_io.hpp>
 
 VM_BEGIN_MODULE( vol )
 

@@ -1,8 +1,8 @@
 // #include <random>
 // #include <gtest/gtest.h>
-// #include <refine/video_compressor.hpp>
-// #include <vocomp/video_decompressor.hpp>
-// #include <vocomp/utils/unbounded_vector_writer.hpp>
+// #include <archive/video_compressor.hpp>
+// #include <varch/video_decompressor.hpp>
+// #include <varch/utils/unbounded_vector_writer.hpp>
 
 // using namespace vol;
 // using namespace std;

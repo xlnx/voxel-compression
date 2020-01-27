@@ -1,12 +1,12 @@
-#include <vocomp/refiner.hpp>
+#include <varch/archiver.hpp>
 
 #include <thread>
 #include <VMat/geometry.h>
 #include <VMat/numeric.h>
 #include <VMUtils/timer.hpp>
 #include <VMFoundation/rawreader.h>
-#include <vocomp/utils/common.hpp>
-#include <vocomp/utils/unbounded_io.hpp>
+#include <varch/utils/common.hpp>
+#include <varch/utils/unbounded_io.hpp>
 #include "video_compressor.hpp"
 
 VM_BEGIN_MODULE( vol )
@@ -16,7 +16,7 @@ using namespace std;
 
 using Voxel = char;
 
-struct RefinerImpl final : vm::NoCopy, vm::NoMove
+struct ArchiverImpl final : vm::NoCopy, vm::NoMove
 {
 private:
 	size_t log_block_size, block_size, block_inner, padding;
@@ -42,7 +42,7 @@ private:
 	map<Idx, BlockIndex> block_idx;
 
 public:
-	RefinerImpl( RefinerOptions const &opts ) :
+	ArchiverImpl( ArchiverOptions const &opts ) :
 	  log_block_size( opts.log_block_size ),
 	  block_size( 1 << opts.log_block_size ),
 	  block_inner( block_size - 2 * opts.padding ),
@@ -109,7 +109,7 @@ public:
 		// since read_buffer is no larger than write_buffer
 		buffer_size = nvoxels_per_block * nblocks_per_stride;
 	}
-	~RefinerImpl()
+	~ArchiverImpl()
 	{
 	}
 
@@ -306,14 +306,14 @@ public:
 
 VM_EXPORT
 {
-	Refiner::Refiner( RefinerOptions const &opts ) :
-	  _( new RefinerImpl( opts ) )
+	Archiver::Archiver( ArchiverOptions const &opts ) :
+	  _( new ArchiverImpl( opts ) )
 	{
 	}
-	Refiner::~Refiner()
+	Archiver::~Archiver()
 	{
 	}
-	bool Refiner::convert()
+	bool Archiver::convert()
 	{
 		return _->convert();
 	}

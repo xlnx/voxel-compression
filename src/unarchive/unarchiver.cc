@@ -1,6 +1,6 @@
 #include <algorithm>
-#include <vocomp/extractor.hpp>
-#include <vocomp/utils/linked_reader.hpp>
+#include <varch/unarchiver.hpp>
+#include <varch/utils/linked_reader.hpp>
 
 VM_BEGIN_MODULE( vol )
 
@@ -8,7 +8,7 @@ using namespace std;
 
 VM_EXPORT
 {
-	void Extractor::batch_extract( vector<Idx> const &blocks,
+	void Unarchiver::batch_unarchive( vector<Idx> const &blocks,
 								   std::function<void( Idx const &idx, VoxelStreamPacket const & )> const &consumer )
 	{
 		if ( !blocks.size() ) return;

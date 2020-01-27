@@ -3,12 +3,12 @@
 #include <VMUtils/modules.hpp>
 #include <VMUtils/concepts.hpp>
 #include <cudafx/driver/context.hpp>
-#include <vocomp/utils/common.hpp>
-#include <vocomp/utils/unbounded_io.hpp>
+#include <varch/utils/common.hpp>
+#include <varch/utils/unbounded_io.hpp>
 #include "nvenc/NvEncoder.h"
 #include "nvenc/NvEncoderCuda.h"
 
-// #include <vocomp/video/VideoCompressor.hpp>
+// #include <varch/video/VideoCompressor.hpp>
 
 VM_BEGIN_MODULE( vol )
 

@@ -2,8 +2,8 @@
 #include <gtest/gtest.h>
 #define private public
 #define protected public
-#include <vocomp/refiner.hpp>
-#include <vocomp/extractor.hpp>
+#include <varch/archiver.hpp>
+#include <varch/unarchiver.hpp>
 #include <VMat/geometry.h>
 #include <VMat/numeric.h>
 #include <VMFoundation/rawreader.h>
@@ -14,7 +14,7 @@ using namespace vol;
 
 void compress_256( string const &raw_input_file, string const &h264_output_file )
 {
-	auto opts = vol::RefinerOptions{}
+	auto opts = vol::ArchiverOptions{}
 				  .set_x( 256 )
 				  .set_y( 256 )
 				  .set_z( 256 )
@@ -30,16 +30,16 @@ void compress_256( string const &raw_input_file, string const &h264_output_file 
 	  .set_height( 512 )
 	  .set_batch_frames( 4 );
 	{
-		Refiner refiner( opts );
-		refiner.convert();
+		Archiver archiver( opts );
+		archiver.convert();
 	}
 }
 
-bool compare_block( Extractor &extractor, string const &raw_input_file, Idx const &idx )
+bool compare_block( Unarchiver &unarchiver, string const &raw_input_file, Idx const &idx )
 {
-	const auto N = extractor.block_size();
+	const auto N = unarchiver.block_size();
 	const auto N_3 = N * N * N;
-	const auto raw = extractor.raw();
+	const auto raw = unarchiver.raw();
 
 	vector<unsigned char> buffer( N_3 );
 	cufx::MemoryView1D<unsigned char> buffer_view( buffer.data(), buffer.size() );
@@ -48,7 +48,7 @@ bool compare_block( Extractor &extractor, string const &raw_input_file, Idx cons
 	vector<unsigned char> src_buffer( N_3 );
 
 	vector<tuple<Idx, unsigned, unsigned, unsigned, unsigned, unsigned>> packets;
-	extractor.batch_extract( { idx }, [&]( Idx const &idx, VoxelStreamPacket const &packet ) {
+	unarchiver.batch_unarchive( { idx }, [&]( Idx const &idx, VoxelStreamPacket const &packet ) {
 		packets.emplace_back( idx, packet.offset, packet.inner_offset,
 							  packet.length, packet._.id, packet._.length );
 		packet.append_to( buffer_view );
@@ -100,25 +100,25 @@ void decompress_256( string const &raw_input_file, string const &h264_output_fil
 	StreamReader reader( is, 0, is.tellg() );
 	reader.seek( 0 );
 	ASSERT_EQ( reader.tell(), 0 );
-	Extractor extractor( reader );
-	EXPECT_EQ( extractor.raw(), ( Idx{ 256, 256, 256 } ) );
-	EXPECT_EQ( extractor.dim(), ( Idx{ 4, 4, 4 } ) );
-	EXPECT_EQ( extractor.adjusted(), ( Idx{ 256, 256, 256 } ) );
-	EXPECT_EQ( extractor.log_block_size(), 6 );
-	EXPECT_EQ( extractor.block_size(), 64 );
-	EXPECT_EQ( extractor.block_inner(), 64 );
-	EXPECT_EQ( extractor.padding(), 0 );
+	Unarchiver unarchiver( reader );
+	EXPECT_EQ( unarchiver.raw(), ( Idx{ 256, 256, 256 } ) );
+	EXPECT_EQ( unarchiver.dim(), ( Idx{ 4, 4, 4 } ) );
+	EXPECT_EQ( unarchiver.adjusted(), ( Idx{ 256, 256, 256 } ) );
+	EXPECT_EQ( unarchiver.log_block_size(), 6 );
+	EXPECT_EQ( unarchiver.block_size(), 64 );
+	EXPECT_EQ( unarchiver.block_inner(), 64 );
+	EXPECT_EQ( unarchiver.padding(), 0 );
 
 	for ( uint32_t i = 0; i != 4; ++i ) {
 		for ( uint32_t j = 0; j != 4; ++j ) {
 			for ( uint32_t k = 0; k != 4; ++k ) {
-				EXPECT_TRUE( compare_block( extractor, raw_input_file, { i, j, k } ) );
+				EXPECT_TRUE( compare_block( unarchiver, raw_input_file, { i, j, k } ) );
 			}
 		}
 	}
 }
 
-TEST( test_extractor, aneurism )
+TEST( test_archive, aneurism )
 {
 	auto raw_input_file = "./test_data/aneurism_256x256x256_uint8.raw";
 	auto h264_output_file = "./test.aneurism_256x256x256_uint8.h264";
@@ -126,7 +126,7 @@ TEST( test_extractor, aneurism )
 	decompress_256( raw_input_file, h264_output_file );
 }
 
-TEST( test_extractor, urandom )
+TEST( test_archive, urandom )
 {
 	auto raw_input_file = "./test_data/urandom_256x256x256_uint8.raw";
 	auto h264_output_file = "./test.urandom_256x256x256_uint8.h264";

@@ -1,7 +1,7 @@
-if (VOCOMP_BUILD_EXTRACTOR)
-  add_subdirectory(extract)
+if (VARCH_BUILD_UNARCHIVER)
+  add_subdirectory(unarchive)
 endif()
 
-if (VOCOMP_BUILD_REFINER)
-  add_subdirectory(refine)
+if (VARCH_BUILD_ARCHIVER)
+  add_subdirectory(archive)
 endif()

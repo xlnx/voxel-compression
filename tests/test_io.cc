@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
-#include <vocomp/utils/linked_reader.hpp>
-#include <vocomp/utils/padded_reader.hpp>
-#include <vocomp/utils/unbounded_vector_writer.hpp>
+#include <varch/utils/linked_reader.hpp>
+#include <varch/utils/padded_reader.hpp>
+#include <varch/utils/unbounded_vector_writer.hpp>
 
 using namespace vol;
 using namespace std;

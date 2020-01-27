@@ -1,8 +1,8 @@
 #include <fstream>
 #include "cxxopts.hpp"
 #include <VMUtils/fmt.hpp>
-#include <vocomp/extractor.hpp>
-#include <vocomp/utils/io.hpp>
+#include <varch/unarchiver.hpp>
+#include <varch/utils/io.hpp>
 
 using namespace std;
 
@@ -24,7 +24,7 @@ int main( int argc, char **argv )
 		ifstream in( opts[ "i" ].as<string>(), std::ios::ate | std::ios::binary );
 		auto len = in.tellg();
 		vol::StreamReader reader( in, 0, len );
-		vol::Extractor e( reader );
+		vol::Unarchiver e( reader );
 
 		vm::println( "{>16}: {}", "Size", e.raw() );
 		vm::println( "{>16}: {}", "Padded Size", e.adjusted() );

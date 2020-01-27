@@ -8,8 +8,8 @@
 #include <cudafx/misc.hpp>
 #include <cudafx/memory.hpp>
 #include <cudafx/array.hpp>
-#include <vocomp/utils/common.hpp>
-#include <vocomp/utils/io.hpp>
+#include <varch/utils/common.hpp>
+#include <varch/utils/io.hpp>
 
 VM_BEGIN_MODULE( vol )
 

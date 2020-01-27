@@ -1,11 +1,11 @@
 # add_executable(voprod voprod.cc)
 
-if(VOCOMP_BUILD_REFINER)
-  cuda_add_executable(voxel-refine voxel-refine.cc)
-  vm_target_dependency(voxel-refine voxel_refine PRIVATE)
+if(VARCH_BUILD_ARCHIVER)
+  cuda_add_executable(voxel-archive voxel-archive.cc)
+  vm_target_dependency(voxel-archive voxel_archive PRIVATE)
 endif()
 
-if(VOCOMP_BUILD_EXTRACTOR)
+if(VARCH_BUILD_UNARCHIVER)
   cuda_add_executable(voxel-info voxel-info.cc)
-  vm_target_dependency(voxel-info voxel_extract PRIVATE)
+  vm_target_dependency(voxel-info voxel_unarchive PRIVATE)
 endif()
