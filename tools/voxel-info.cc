@@ -1,7 +1,7 @@
 #include <fstream>
 #include "cxxopts.hpp"
 #include <VMUtils/fmt.hpp>
-#include <varch/unarchiver.hpp>
+#include <varch/unarchive/unarchiver.hpp>
 #include <varch/utils/io.hpp>
 
 using namespace std;

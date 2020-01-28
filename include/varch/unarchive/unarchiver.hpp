@@ -3,21 +3,12 @@
 #include <VMUtils/nonnull.hpp>
 #include <cudafx/memory.hpp>
 #include <varch/utils/common.hpp>
-#include <varch/video_decompressor.hpp>
+#include <varch/unarchive/video_decompressor.hpp>
 
 VM_BEGIN_MODULE( vol )
 
 VM_EXPORT
 {
-	// struct BlockConsumer : vm::NoCopy
-	// {
-	// 	virtual void consume( cufx::MemoryView1D<unsigned char> const &data,
-	// 						  Idx const &idx,
-	// 						  std::size_t offset ) = 0;
-	// 	virtual void wait() {}
-	// 	virtual cufx::MemoryView1D<unsigned char> swap_buffer() const = 0;
-	// };
-
 	struct VoxelStreamPacket : vm::NoMove, vm::NoCopy
 	{
 		VoxelStreamPacket( VideoStreamPacket const &_, unsigned inner_offset ) :
@@ -47,7 +38,7 @@ VM_EXPORT
 		VM_DEFINE_ATTRIBUTE( unsigned, io_queue_size ) = 4;
 	};
 
-	struct Unarchiver final : vm::NoCopy
+	struct Unarchiver final : vm::NoCopy, vm::NoMove
 	{
 		Unarchiver( Reader &reader, UnarchiverOptions const &opts = {} ) :
 		  content( reader, sizeof( Header ), reader.size() - sizeof( Header ) ),
@@ -69,8 +60,20 @@ VM_EXPORT
 		}
 		// block_idx ->
 		void batch_unarchive( std::vector<Idx> const &blocks,
-							std::function<void( Idx const &idx, VoxelStreamPacket const & )> const &consumer );
+							  std::function<void( Idx const &idx, VoxelStreamPacket const & )> const &consumer );
+		std::size_t unarchive_into( Idx const &block,
+									cufx::MemoryView1D<unsigned char> const &buffer )
+		{
+			std::size_t nbytes;
+			batch_unarchive( { block },
+							 [&]( Idx const &, VoxelStreamPacket const &pkt ) {
+								 pkt.append_to( buffer );
+								 nbytes += pkt.length;
+							 } );
+			return nbytes;
+		}
 
+	public:
 		auto raw() const { return header.raw; }
 		auto dim() const { return header.dim; }
 		auto adjusted() const { return header.adjusted; }

@@ -1,4 +1,3 @@
-#include <varch/video_decompressor.hpp>
 
 #include <atomic>
 #include <cudafx/driver/context.hpp>
@@ -6,6 +5,7 @@
 #include <cudafx/transfer.hpp>
 #include <cudafx/array.hpp>
 #include <VMUtils/with.hpp>
+#include <varch/unarchive/video_decompressor.hpp>
 #include "nvdec/nvcuvid.h"
 #include "nvdec/NvCodecUtils.h"
 // #include "nvdec/NvDecoder.h"

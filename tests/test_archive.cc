@@ -2,11 +2,11 @@
 #include <gtest/gtest.h>
 #define private public
 #define protected public
-#include <varch/archiver.hpp>
-#include <varch/unarchiver.hpp>
 #include <VMat/geometry.h>
 #include <VMat/numeric.h>
 #include <VMFoundation/rawreader.h>
+#include <varch/archive/archiver.hpp>
+#include <varch/unarchive/unarchiver.hpp>
 
 using namespace vm;
 using namespace std;
@@ -42,7 +42,6 @@ bool compare_block( Unarchiver &unarchiver, string const &raw_input_file, Idx co
 	const auto raw = unarchiver.raw();
 
 	vector<unsigned char> buffer( N_3 );
-	cufx::MemoryView1D<unsigned char> buffer_view( buffer.data(), buffer.size() );
 
 	RawReaderIO raw_input( raw_input_file, Size3( raw.x, raw.y, raw.z ), sizeof( char ) );
 	vector<unsigned char> src_buffer( N_3 );
@@ -51,7 +50,7 @@ bool compare_block( Unarchiver &unarchiver, string const &raw_input_file, Idx co
 	unarchiver.batch_unarchive( { idx }, [&]( Idx const &idx, VoxelStreamPacket const &packet ) {
 		packets.emplace_back( idx, packet.offset, packet.inner_offset,
 							  packet.length, packet._.id, packet._.length );
-		packet.append_to( buffer_view );
+		packet.append_to( buffer );
 	} );
 
 	auto begin = Vec3i( idx.x, idx.y, idx.z ) * N;

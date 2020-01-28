@@ -13,6 +13,7 @@ file(GLOB_RECURSE VARCH_UNARCHIVE_SRC
 
 cuda_add_library(voxel_unarchive ${VARCH_UNARCHIVE_SRC})
 
+vm_target_dependency(voxel_unarchive vmcore PRIVATE)
 vm_target_dependency(voxel_unarchive VMUtils PUBLIC)
 vm_target_dependency(voxel_unarchive cudafx PUBLIC)
 target_link_libraries(voxel_unarchive ${CUDA_CUDA_LIBRARY})

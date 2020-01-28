@@ -1,7 +1,7 @@
 #include <iostream>
 #include <string>
 #include <VMUtils/cmdline.hpp>
-#include <varch/archiver.hpp>
+#include <varch/archive/archiver.hpp>
 
 #ifdef WIN32
 #include <windows.h>

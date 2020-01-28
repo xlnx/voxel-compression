@@ -1,5 +1,5 @@
 #include <algorithm>
-#include <varch/unarchiver.hpp>
+#include <varch/unarchive/unarchiver.hpp>
 #include <varch/utils/linked_reader.hpp>
 
 VM_BEGIN_MODULE( vol )
@@ -9,7 +9,7 @@ using namespace std;
 VM_EXPORT
 {
 	void Unarchiver::batch_unarchive( vector<Idx> const &blocks,
-								   std::function<void( Idx const &idx, VoxelStreamPacket const & )> const &consumer )
+									  std::function<void( Idx const &idx, VoxelStreamPacket const & )> const &consumer )
 	{
 		if ( !blocks.size() ) return;
 		vector<map<Idx, BlockIndex>::const_iterator> sorted_blocks( blocks.size() );
