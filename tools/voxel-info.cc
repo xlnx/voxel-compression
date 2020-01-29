@@ -1,27 +1,40 @@
 #include <fstream>
+#include "cxxopts.hpp"
 #include <VMUtils/fmt.hpp>
-#include <vocomp/refine/extractor.hpp>
-#include <vocomp/io.hpp>
+#include <varch/unarchive/unarchiver.hpp>
+#include <varch/utils/io.hpp>
 
 using namespace std;
 
 int main( int argc, char **argv )
 {
+	cxxopts::Options options( "voxel-info", "Print voxel info" );
+	options.add_options()(
+	  "i,input", "input compressed file", cxxopts::value<string>() )(
+	  "h,help", "print this help message" );
+	//   ("l,list", "list indices" );
+
+	auto opts = options.parse( argc, argv );
+	if ( opts.count( "h" ) || !opts.count( "i" ) ) {
+		vm::println( "{}", options.help() );
+		return 0;
+	}
+
 	try {
-		ifstream in( argv[ 1 ], std::ios::ate | std::ios::binary );
+		ifstream in( opts[ "i" ].as<string>(), std::ios::ate | std::ios::binary );
 		auto len = in.tellg();
 		vol::StreamReader reader( in, 0, len );
+<<<<<<< HEAD
 		vol::refine::Extractor e( reader );
+=======
+		vol::Unarchiver e( reader );
+>>>>>>> eedd2a0700c5cdbaf9d39aa62b2ac9d0ce485704
 
-		if ( argc <= 2 ) {
-			vm::println( "{>16}: {}", "Size", e.raw() );
-			vm::println( "{>16}: {}", "Padded Size", e.adjusted() );
-			vm::println( "{>16}: {}", "Grid Size", e.dim() );
-			vm::println( "{>16}: {} = 2^{}", "Block Size", e.block_size(), e.log_block_size() );
-			vm::println( "{>16}: {}", "Padding", e.padding() );
-		} else {
-			vm::println( "{}", e.index() );
-		}
+		vm::println( "{>16}: {}", "Size", e.raw() );
+		vm::println( "{>16}: {}", "Padded Size", e.adjusted() );
+		vm::println( "{>16}: {}", "Grid Size", e.dim() );
+		vm::println( "{>16}: {} = 2^{}", "Block Size", e.block_size(), e.log_block_size() );
+		vm::println( "{>16}: {}", "Padding", e.padding() );
 
 	} catch ( exception &e ) {
 		vm::eprintln( "{}", e.what() );

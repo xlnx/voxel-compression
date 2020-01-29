@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.9)
 project(voxel-compression)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+
 find_package(Git)
 execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive)
 # install external modules
@@ -13,6 +15,7 @@ vm_external_module(
 find_package(CUDA)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
 
+<<<<<<< HEAD
 option(VOCOMP_BUILD_VIDEO_COMPRESS "build wrapped nvidia video compression library" ON)
 option(VOCOMP_BUILD_VIDEO_DECOMPRESS "build wrapped nvidia video decompression library" ON)
 
@@ -29,35 +32,29 @@ endif()
 
 if(VOCOMP_ENABLE_CUDA AND CUDA_FOUND)
   set(VOCOMP_ENABLE_CUDA ON)
-else()
-  set(VOCOMP_ENABLE_CUDA OFF)
-endif()
-if(VOCOMP_ENABLE_GL AND UNIX AND NOT APPLE)
-  set(VOCOMP_ENABLE_GL ON)
-else()
-  set(VOCOMP_ENABLE_GL OFF)
-endif()
-if(VOCOMP_ENABLE_D3D9 AND WIN32)
-  set(VOCOMP_ENABLE_D3D9 ON)
-else()
-  set(VOCOMP_ENABLE_D3D9 OFF)
-endif()
+=======
+option(VARCH_BUILD_ARCHIVER "build archiver library" ON)
+option(VARCH_BUILD_UNARCHIVER "build unarchiver library" ON)
+option(VARCH_BUILD_TOOLS "build tools" ON)
+option(VARCH_BUILD_TESTS "build tests" OFF)
+option(VARCH_ENABLE_OPENH264 "enable openh264 for codec" ON)
 
-if(VOCOMP_ENABLE_CUDA)
-  add_definitions(-DVOCOMP_ENABLE_CUDA)
+if (VARCH_ENABLE_OPENH264)
+  find_package(OpenH264)
+  if (OPENH264_FOUND)
+    add_definitions(-DVARCH_OPENH264_CODEC)
+  endif()
+>>>>>>> eedd2a0700c5cdbaf9d39aa62b2ac9d0ce485704
+else()
+  set(OPENH264_FOUND OFF)
 endif()
-if(VOCOMP_ENABLE_GL)
-  add_definitions(-DVOCOMP_ENABLE_GL)
-endif()
-if(VOCOMP_ENABLE_D3D9)
-  add_definitions(-DVOCOMP_ENABLE_D3D9)
-endif()
-
-option(VOCOMP_BUILD_REFINER "build refiner library" ON)
-option(VOCOMP_BUILD_EXTRACTOR "build extractor library" ON)
-option(VOCOMP_BUILD_TOOLS "build tools" ON)
 
 add_subdirectory(src)
-if(VOCOMP_BUILD_TOOLS)
+
+if(VARCH_BUILD_TOOLS)
   add_subdirectory(tools)
+endif()
+
+if(VARCH_BUILD_TESTS)
+  add_subdirectory(tests)
 endif()
