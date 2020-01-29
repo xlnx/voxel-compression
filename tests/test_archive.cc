@@ -18,7 +18,7 @@ void compress_256( string const &raw_input_file, string const &h264_output_file 
 				  .set_x( 256 )
 				  .set_y( 256 )
 				  .set_z( 256 )
-				  .set_log_block_size( 6 )  // 64
+				  .set_log_block_size( 6 )	// 64
 				  .set_padding( 0 )
 				  .set_suggest_mem_gb( 4 )
 				  .set_input( raw_input_file )

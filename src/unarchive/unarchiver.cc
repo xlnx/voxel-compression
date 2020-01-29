@@ -48,7 +48,7 @@ VM_EXPORT
 		int64_t block_bytes = header.block_size * header.block_size * header.block_size;
 		decomp.decompress(
 		  linked_reader,
-		  [&]( VideoStreamPacket const &packet ) {
+		  [&]( NvBitStreamPacket const &packet ) {
 			  while ( i < linked_block_offsets.size() ) {
 				  //   vm::println( ">>>>>>{} {} {} {} {} {}<<<<<<", i, sorted_blocks[ i ]->first, linked_block_offsets.size(), linked_block_offsets[ i ], curr_block_offset, linked_read_pos );
 				  int64_t inpacket_offset = linked_block_offsets[ i ] + curr_block_offset - linked_read_pos;

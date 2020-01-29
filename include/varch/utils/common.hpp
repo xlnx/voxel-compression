@@ -49,7 +49,7 @@ VM_EXPORT
 	};
 	enum class CompressDevice : uint32_t
 	{
-		Cuda,	/* cuda sdk required */
+		Cuda,	 /* cuda sdk required */
 		Graphics /* D3D9 for windows and GL for linux */
 	};
 
@@ -64,6 +64,11 @@ VM_EXPORT
 		VM_DEFINE_ATTRIBUTE( unsigned, height ) = 1024;
 		VM_DEFINE_ATTRIBUTE( unsigned, batch_frames ) = 64;
 		VM_DEFINE_ATTRIBUTE( PixelFormat, pixel_format ) = PixelFormat::IYUV;
+	};
+	struct VideoDecompressOptions
+	{
+		VM_DEFINE_ATTRIBUTE( EncodeMethod, encode );
+		VM_DEFINE_ATTRIBUTE( unsigned, io_queue_size ) = 4;
 	};
 
 	struct BlockIndex

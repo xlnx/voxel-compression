@@ -44,6 +44,8 @@ else()
   )
 endif()
 
+target_link_libraries(voxel_archive openh264)
+
 target_include_directories(voxel_archive PUBLIC
   ${PROJECT_SOURCE_DIR}/include
 )

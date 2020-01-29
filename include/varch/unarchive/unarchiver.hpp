@@ -11,7 +11,7 @@ VM_EXPORT
 {
 	struct VoxelStreamPacket : vm::NoMove, vm::NoCopy
 	{
-		VoxelStreamPacket( VideoStreamPacket const &_, unsigned inner_offset ) :
+		VoxelStreamPacket( NvBitStreamPacket const &_, unsigned inner_offset ) :
 		  _( _ ),
 		  inner_offset( inner_offset ) {}
 
@@ -29,7 +29,7 @@ VM_EXPORT
 		unsigned offset, length;
 
 	private:
-		VideoStreamPacket const &_;
+		NvBitStreamPacket const &_;
 		unsigned inner_offset;
 	};
 
@@ -88,7 +88,7 @@ VM_EXPORT
 		PartReader content;
 		vector<uint64_t> frame_offset;
 		map<Idx, BlockIndex> block_idx;
-		VideoDecompressor decomp;
+		NvDecoderAsync decomp;
 	};
 }
 

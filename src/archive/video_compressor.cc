@@ -5,7 +5,8 @@
 #include <varch/utils/padded_reader.hpp>
 #include <varch/utils/filter_reader.hpp>
 #include <varch/utils/self_owned_reader.hpp>
-#include "nvencoder_wrapper.hpp"
+#include "backends/nvenc/nvencoder_wrapper.hpp"
+#include "backends/openh264/isvc_encoder_wrapper.hpp"
 #include "video_compressor.hpp"
 
 VM_BEGIN_MODULE( vol )
@@ -20,9 +21,13 @@ struct VideoCompressorImpl
 	{
 		static mutex mut;
 		unique_lock<mutex> lk( mut );
-		_.reset( new NvEncoderWrapper( opts ) );
+		try {
+			encoder.reset( new NvEncoderWrapper( opts ) );
+		} catch ( std::exception &e ) {
+			encoder.reset( new IsvcEncoderWrapper( opts ) );
+		}
 		nframe_batch = opts.batch_frames;
-		frame_size = _->_->GetFrameSize();
+		frame_size = encoder->frame_size();
 		worker.reset( new thread( [this] { work_loop(); } ) );
 	}
 
@@ -52,7 +57,7 @@ struct VideoCompressorImpl
 				if ( should_flush ) {
 					should_flush = false;
 				}
-				vm::println( "acquired {} readers", readers.size() );
+				// vm::println( "acquired {} readers", readers.size() );
 				input_readers.swap( readers );
 				auto nframes = total_size / frame_size;
 				nframes_size = nframes * frame_size;
@@ -66,7 +71,7 @@ struct VideoCompressorImpl
 						// vm::println( "!!{}", readers.size() );
 					}
 				}
-				vm::println( "saved {} readers", readers.size() );
+				// vm::println( "saved {} readers", readers.size() );
 				total_size -= nframes_size;
 				emitted_frames += nframes;
 			}
@@ -79,7 +84,7 @@ struct VideoCompressorImpl
 					part_reader.seek( 0 );
 					vector<uint32_t> frame_len;
 					// vm::println( "encode with {} blocks", input_readers.size() );
-					this->_->encode( part_reader, out, frame_len );
+					this->encoder->encode( part_reader, out, frame_len );
 					for ( auto &len : frame_len ) {
 						frame_offset.emplace_back( frame_offset.back() + len );
 					}
@@ -152,9 +157,10 @@ struct VideoCompressorImpl
 		finish_cv.wait( work_lk );
 	}
 
+public:
 	// VideoCompressOptions opts;
 	Writer &out;
-	shared_ptr<NvEncoderWrapper> _;
+	shared_ptr<IEncoder> encoder;
 	vector<vm::Arc<Reader>> readers;
 	size_t total_size = 0;
 	size_t frame_size, nframe_batch;

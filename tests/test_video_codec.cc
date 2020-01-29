@@ -75,7 +75,7 @@
 
 // 	auto frame_offset = video_compressor.frame_offset();
 
-// 	VideoDecompressor deVideoCompressor;
+// 	NvDecoderAsync deVideoCompressor;
 // 	auto opts = VideoDecompressOptions{}
 // 				  .set_encode( EncodeMethod::H264 )
 // 				  .set_io_queue_size( 1 );
@@ -88,7 +88,7 @@
 // 		vector<size_t> buffer_size;
 // 		deVideoCompressor.decompress(
 // 		  first_frame,
-// 		  [&]( VideoStreamPacket const &packet ) {
+// 		  [&]( NvBitStreamPacket const &packet ) {
 // 			  buffer_size.emplace_back( packet.length );
 // 		  } );
 // 		ASSERT_EQ( buffer_size, vector<size_t>{ frame_size } );
@@ -100,7 +100,7 @@
 // 		vector<size_t> buffer_size;
 // 		deVideoCompressor.decompress(
 // 		  first_frame,
-// 		  [&]( VideoStreamPacket const &packet ) {
+// 		  [&]( NvBitStreamPacket const &packet ) {
 // 			  buffer_size.emplace_back( packet.length );
 // 		  } );
 // 		ASSERT_EQ( buffer_size, vector<size_t>{ frame_size } );
@@ -112,7 +112,7 @@
 // 		vector<size_t> buffer_size;
 // 		deVideoCompressor.decompress(
 // 		  frame_1_3,
-// 		  [&]( VideoStreamPacket const &packet ) {
+// 		  [&]( NvBitStreamPacket const &packet ) {
 // 			  buffer_size.emplace_back( packet.length );
 // 		  } );
 // 		ASSERT_EQ( buffer_size, ( vector<size_t>{ frame_size, frame_size, frame_size } ) );
@@ -124,7 +124,7 @@
 // 		vector<size_t> buffer_size;
 // 		deVideoCompressor.decompress(
 // 		  frame_0_3,
-// 		  [&]( VideoStreamPacket const &packet ) {
+// 		  [&]( NvBitStreamPacket const &packet ) {
 // 			  buffer_size.emplace_back( packet.length );
 // 		  } );
 // 		ASSERT_EQ( buffer_size, ( vector<size_t>{ frame_size, frame_size, frame_size, frame_size } ) );
