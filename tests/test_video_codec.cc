@@ -47,7 +47,7 @@
 
 // 	vector<vector<char>> raw_input_blocks;
 
-// 	auto comp_opts = VideoCompressOptions{}
+// 	auto comp_opts = EncodeOptions{}
 // 					   .set_encode_preset( EncodePreset::Default )
 // 					   .set_width( width )
 // 					   .set_height( height )
@@ -74,7 +74,7 @@
 // 	auto frame_offset = video_compressor.frame_offset();
 
 // 	NvDecoderAsync deVideoCompressor;
-// 	auto opts = VideoDecompressOptions{}
+// 	auto opts = DecodeOptions{}
 // 				  .set_io_queue_size( 1 );
 // 	auto data_ptr = compressed.data();
 
@@ -143,7 +143,7 @@
 
 // 	vector<vector<char>> raw_input_blocks;
 
-// 	auto comp_opts = VideoCompressOptions{}
+// 	auto comp_opts = EncodeOptions{}
 // 					   .set_encode_preset( EncodePreset::Default )
 // 					   .set_width( width )
 // 					   .set_height( height )

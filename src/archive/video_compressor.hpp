@@ -12,7 +12,7 @@ struct VideoCompressorImpl;
 
 struct VideoCompressor final : vm::NoCopy
 {
-	VideoCompressor( Writer &out, VideoCompressOptions const &_ = VideoCompressOptions{} );
+	VideoCompressor( Writer &out, EncodeOptions const &_ = EncodeOptions{} );
 	~VideoCompressor();
 
 	BlockIndex accept( vm::Arc<Reader> &&reader );

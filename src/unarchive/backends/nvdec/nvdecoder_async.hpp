@@ -46,7 +46,7 @@ private:
 
 struct NvDecoderAsync final : IDecoder
 {
-	NvDecoderAsync( VideoDecompressOptions const &opts = VideoDecompressOptions{} );
+	NvDecoderAsync( DecodeOptions const &opts = DecodeOptions{} );
 	~NvDecoderAsync();
 
 	void decode( Reader &reader,

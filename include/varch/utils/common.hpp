@@ -28,24 +28,24 @@ VM_EXPORT
 		LosslessDefault,
 		LosslessHP
 	};
-	enum class CompressDevice : uint32_t
+	enum class ComputeDevice : uint32_t
 	{
-		Cuda,	 /* cuda sdk required */
-		Graphics /* D3D9 for windows and GL for linux */
+		Default = 0,
+		Cuda, /* cuda runtime & nvidia driver >= 418 */
+		Cpu	  /* openh264 libs required */
 	};
 
-	struct VideoCompressOptions
+	struct EncodeOptions
 	{
-		VideoCompressOptions();
-
-		VM_DEFINE_ATTRIBUTE( CompressDevice, device );
+		VM_DEFINE_ATTRIBUTE( ComputeDevice, device ) = ComputeDevice::Default;
 		VM_DEFINE_ATTRIBUTE( EncodePreset, encode_preset ) = EncodePreset::Default;
 		VM_DEFINE_ATTRIBUTE( unsigned, width ) = 1024;
 		VM_DEFINE_ATTRIBUTE( unsigned, height ) = 1024;
 		VM_DEFINE_ATTRIBUTE( unsigned, batch_frames ) = 64;
 	};
-	struct VideoDecompressOptions
+	struct DecodeOptions
 	{
+		VM_DEFINE_ATTRIBUTE( ComputeDevice, device ) = ComputeDevice::Default;
 		VM_DEFINE_ATTRIBUTE( unsigned, io_queue_size ) = 4;
 	};
 

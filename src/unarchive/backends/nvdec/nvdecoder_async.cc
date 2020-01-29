@@ -141,7 +141,7 @@ struct NvDecoderAsyncImpl final : vm::NoCopy, vm::NoMove
 				 std::function<void( NvBitStreamPacket const & )> const &consumer );
 
 public:
-	NvDecoderAsyncImpl( VideoDecompressOptions const &opts ) :
+	NvDecoderAsyncImpl( DecodeOptions const &opts ) :
 	  io_queue_size( opts.io_queue_size )
 	{
 		NVDEC_API_CALL( cuvidCtxLockCreate( &ctxlock, ctx ) );
@@ -483,7 +483,7 @@ int NvDecoderAsyncImpl::handle_picture_decode( CUVIDPICPARAMS *params )
 	return 1;
 }
 
-NvDecoderAsync::NvDecoderAsync( VideoDecompressOptions const &opts ) :
+NvDecoderAsync::NvDecoderAsync( DecodeOptions const &opts ) :
   _( new NvDecoderAsyncImpl( opts ) )
 {
 }

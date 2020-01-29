@@ -7,7 +7,7 @@ VM_BEGIN_MODULE( vol )
 
 struct IsvcEncoderWrapperImpl
 {
-	IsvcEncoderWrapperImpl( VideoCompressOptions const &opts ) :
+	IsvcEncoderWrapperImpl( EncodeOptions const &opts ) :
 	  width( opts.width ),
 	  height( opts.height ),
 	  frame_size( width * height * 3 / 2 )
@@ -114,7 +114,7 @@ public:
 	SSourcePicture pic = {};
 };
 
-IsvcEncoderWrapper::IsvcEncoderWrapper( VideoCompressOptions const &opts ) :
+IsvcEncoderWrapper::IsvcEncoderWrapper( EncodeOptions const &opts ) :
   _( new IsvcEncoderWrapperImpl( opts ) )
 {
 }

@@ -9,7 +9,7 @@ VM_BEGIN_MODULE( vol )
 
 struct NvEncoderWrapper : IEncoder
 {
-	NvEncoderWrapper( VideoCompressOptions const &opts );
+	NvEncoderWrapper( EncodeOptions const &opts );
 	~NvEncoderWrapper();
 
 	void encode( Reader &reader, Writer &out, std::vector<uint32_t> &frame_len ) override;

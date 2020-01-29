@@ -37,7 +37,7 @@ int main( int argc, char **argv )
 	a.add<size_t>( "memlimit", 'm', "maximum memory limit in gb", false, system_memory_gb / 2 );
 	a.add<int>( "padding", 'p', "block padding", false, 2, cmdline::oneof<int>( 0, 1, 2 ) );
 	a.add<int>( "side", 's', "block size in log(voxel)", false, 6, cmdline::oneof<int>( 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 ) );
-	a.add<string>( "device", 'd', "video compression device: default/cuda/graphics", false, "default", cmdline::oneof<string>( "default", "cuda", "graphics" ) );
+	a.add<string>( "device", 'd', "video compression device: default/cuda/cpu", false, "default", cmdline::oneof<string>( "default", "cuda", "cpu" ) );
 	a.add<string>( "of", 'o', "output filename", true );
 
 	//cout<<a.usage();
@@ -64,15 +64,19 @@ int main( int argc, char **argv )
 					  .set_input( input );
 
 		auto &compress_opts = opts.compress_opts;
-		compress_opts = VideoCompressOptions{}
+		compress_opts = EncodeOptions{}
 						  .set_encode_preset( EncodePreset::Default )
 						  .set_width( 1024 )
 						  .set_height( 1024 )
 						  .set_batch_frames( 16 );
 		if ( dev == "cuda" ) {
-			compress_opts.set_device( CompressDevice::Cuda );
-		} else if ( dev == "graphics" ) {
-			compress_opts.set_device( CompressDevice::Graphics );
+			compress_opts.set_device( ComputeDevice::Cuda );
+		} else if ( dev == "cpu" ) {
+			compress_opts.set_device( ComputeDevice::Cpu );
+		} else if ( dev == "default" ) {
+			compress_opts.set_device( ComputeDevice::Default );
+		} else {
+			throw std::logic_error( vm::fmt( "unknown device: {}", dev ) );
 		}
 
 		opts.set_output( vm::fmt( "{}.h264", output ) );

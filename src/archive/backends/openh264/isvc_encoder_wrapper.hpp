@@ -8,7 +8,7 @@ struct IsvcEncoderWrapperImpl;
 
 struct IsvcEncoderWrapper : IEncoder
 {
-	IsvcEncoderWrapper( VideoCompressOptions const &opts );
+	IsvcEncoderWrapper( EncodeOptions const &opts );
 	~IsvcEncoderWrapper();
 
 	void encode( Reader &reader, Writer &writer,

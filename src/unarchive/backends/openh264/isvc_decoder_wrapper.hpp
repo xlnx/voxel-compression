@@ -8,7 +8,7 @@ struct IsvcDecoderWrapperImpl;
 
 struct IsvcDecoderWrapper : IDecoder
 {
-	IsvcDecoderWrapper( VideoDecompressOptions const &opts = VideoDecompressOptions{} );
+	IsvcDecoderWrapper( DecodeOptions const &opts = DecodeOptions{} );
 	~IsvcDecoderWrapper();
 
 	void decode( Reader &reader,

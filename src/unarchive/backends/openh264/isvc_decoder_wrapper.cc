@@ -14,9 +14,10 @@ struct BitStreamPacket : Packet
 		}
 		int end_offset = offset + length;
 		auto hp = dst.ptr();
-		for ( int i = 0; i != 3; ++i ) {
+		for ( int i = 0; i != 2; ++i ) {
 			int beg = std::max( int( offset ) - byte_offset[ i ], 0 );
-			int end = std::min( end_offset - byte_offset[ i ], byte_offset[ i + 1 ] - byte_offset[ i ] );
+			int end = std::min( end_offset - byte_offset[ i ],
+								byte_offset[ i + 1 ] - byte_offset[ i ] );
 			int len = end - beg;
 			if ( len > 0 ) {
 				auto w = width[ i ];
@@ -95,7 +96,7 @@ public:
 
 struct IsvcDecoderWrapperImpl
 {
-	IsvcDecoderWrapperImpl( VideoDecompressOptions const &opts )
+	IsvcDecoderWrapperImpl( DecodeOptions const &opts )
 	{
 		WelsCreateDecoder( &decoder );
 
@@ -161,7 +162,7 @@ public:
 	BitStreamPacket out;
 };
 
-IsvcDecoderWrapper::IsvcDecoderWrapper( VideoDecompressOptions const &opts ) :
+IsvcDecoderWrapper::IsvcDecoderWrapper( DecodeOptions const &opts ) :
   _( new IsvcDecoderWrapperImpl( opts ) )
 {
 }

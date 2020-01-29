@@ -22,7 +22,7 @@ inline GUID const *into_nv_preset( EncodePreset preset )
 std::unique_ptr<NvEncoder> NvEncoderWrapper::_;
 cufx::drv::Context NvEncoderWrapper::ctx = 0;
 
-NvEncoderWrapper::NvEncoderWrapper( VideoCompressOptions const &opts )
+NvEncoderWrapper::NvEncoderWrapper( EncodeOptions const &opts )
 {
 	static NV_ENC_INITIALIZE_PARAMS params = { NV_ENC_INITIALIZE_PARAMS_VER };
 	static NV_ENC_CONFIG cfg = { NV_ENC_CONFIG_VER };

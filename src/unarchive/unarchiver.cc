@@ -3,7 +3,9 @@
 #include <varch/utils/linked_reader.hpp>
 #include "idecoder.hpp"
 #include "backends/nvdec/nvdecoder_async.hpp"
+#ifdef VARCH_OPENH264_CODEC
 #include "backends/openh264/isvc_decoder_wrapper.hpp"
+#endif
 
 VM_BEGIN_MODULE( vol )
 
@@ -11,15 +13,27 @@ using namespace std;
 
 struct UnarchiverImpl
 {
-	UnarchiverImpl( UnarchiverData &data, UnarchiverOptions const &opts ) :
+	UnarchiverImpl( UnarchiverData &data, DecodeOptions const &opts ) :
 	  data( data )
 	{
-		auto dec_opts = VideoDecompressOptions{}
-						  .set_io_queue_size( opts.io_queue_size );
-		try {
-			decoder.reset( new NvDecoderAsync( dec_opts ) );
-		} catch ( std::exception &e ) {
-			decoder.reset( new IsvcDecoderWrapper( dec_opts ) );
+		switch ( opts.device ) {
+		case ComputeDevice::Cuda:
+			decoder.reset( new NvDecoderAsync( opts ) );
+			break;
+		case ComputeDevice::Cpu:
+		CPU:
+#ifdef VARCH_OPENH264_CODEC
+			decoder.reset( new IsvcDecoderWrapper( opts ) );
+#else
+			throw std::logic_error( "please recompile with openh264 codec support" );
+#endif
+			break;
+		default:
+			try {
+				decoder.reset( new NvDecoderAsync( opts ) );
+			} catch ( std::exception &e ) {
+				goto CPU;
+			}
 		}
 	}
 
@@ -120,7 +134,7 @@ public:
 
 VM_EXPORT
 {
-	Unarchiver::Unarchiver( Reader & reader, UnarchiverOptions const &opts ) :
+	Unarchiver::Unarchiver( Reader & reader, DecodeOptions const &opts ) :
 	  data( reader ),
 	  _( new UnarchiverImpl( data, opts ) )
 	{

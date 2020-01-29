@@ -59,14 +59,9 @@ VM_EXPORT
 		unsigned inner_offset;
 	};
 
-	struct UnarchiverOptions
-	{
-		VM_DEFINE_ATTRIBUTE( unsigned, io_queue_size ) = 4;
-	};
-
 	struct Unarchiver final : vm::NoCopy, vm::NoMove
 	{
-		Unarchiver( Reader &reader, UnarchiverOptions const &opts = {} );
+		Unarchiver( Reader &reader, DecodeOptions const &opts = {} );
 		~Unarchiver();
 
 	public:
