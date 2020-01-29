@@ -60,7 +60,7 @@ bool compare_block( Unarchiver &unarchiver, string const &raw_input_file, Idx co
 	a /= buffer.size();
 	vm::println( "block = {}, stddev = {}, avg = {}, maxdiff = {}", idx, s, a, m );
 
-	const double threshold = 10;
+	const double threshold = 15;
 	if ( s < threshold ) { return true; }
 
 	println( "given:" );
@@ -108,17 +108,16 @@ void decode_256( string const &raw_input_file, string const &h264_output_file )
 	}
 }
 
-// TEST( test_archive, aneurism )
-// {
-// 	auto raw_input_file = "./test_data/aneurism_256x256x256_uint8.raw";
-// 	auto h264_output_file = "./test.aneurism_256x256x256_uint8.h264";
-// 	compress_256( raw_input_file, h264_output_file );
-// 	decode_256( raw_input_file, h264_output_file );
-// }
+TEST( test_archive, aneurism )
+{
+	auto raw_input_file = "./test_data/aneurism_256x256x256_uint8.raw";
+	auto h264_output_file = "./test.aneurism_256x256x256_uint8.h264";
+	compress_256( raw_input_file, h264_output_file );
+	decode_256( raw_input_file, h264_output_file );
+}
 
 TEST( test_archive, urandom )
 {
-	// auto raw_input_file = "./test_data/aneurism_256x256x256_uint8.raw";
 	auto raw_input_file = "./test_data/urandom_256x256x256_uint8.raw";
 	auto h264_output_file = "./test.urandom_256x256x256_uint8.h264";
 	compress_256( raw_input_file, h264_output_file );

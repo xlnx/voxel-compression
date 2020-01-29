@@ -56,7 +56,7 @@ public:
 
 		pic.pData[ 0 ] = y_plane.data();
 		pic.pData[ 1 ] = uv_plane.data();
-		pic.pData[ 2 ] = pic.pData[ 1 ] + area_2;
+		pic.pData[ 2 ] = pic.pData[ 1 ] + ( area_2 >> 1 );
 
 		while ( reader.read( reinterpret_cast<char *>( y_plane.data() ), y_plane.size() ) == y_plane.size() &&
 				reader.read( reinterpret_cast<char *>( nv12_plane.data() ), nv12_plane.size() ) == nv12_plane.size() ) {
