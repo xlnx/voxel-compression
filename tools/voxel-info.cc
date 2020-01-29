@@ -24,11 +24,7 @@ int main( int argc, char **argv )
 		ifstream in( opts[ "i" ].as<string>(), std::ios::ate | std::ios::binary );
 		auto len = in.tellg();
 		vol::StreamReader reader( in, 0, len );
-<<<<<<< HEAD
-		vol::refine::Extractor e( reader );
-=======
 		vol::Unarchiver e( reader );
->>>>>>> eedd2a0700c5cdbaf9d39aa62b2ac9d0ce485704
 
 		vm::println( "{>16}: {}", "Size", e.raw() );
 		vm::println( "{>16}: {}", "Padded Size", e.adjusted() );
