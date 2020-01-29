@@ -22,7 +22,7 @@ VM_EXPORT
 		VM_DEFINE_ATTRIBUTE( size_t, padding );
 		VM_DEFINE_ATTRIBUTE( string, input );
 		VM_DEFINE_ATTRIBUTE( string, output );
-		VM_DEFINE_ATTRIBUTE( VideoCompressOptions, compress_opts );
+		VM_DEFINE_ATTRIBUTE( EncodeOptions, compress_opts );
 		VM_DEFINE_ATTRIBUTE( size_t, suggest_mem_gb ) = 128;
 	};
 

@@ -2,34 +2,6 @@
 
 VM_BEGIN_MODULE( vol )
 
-inline NV_ENC_BUFFER_FORMAT into_nv_format( PixelFormat format )
-{
-	switch ( format ) {
-	default:
-	case PixelFormat::IYUV: return NV_ENC_BUFFER_FORMAT_IYUV;
-	case PixelFormat::YV12: return NV_ENC_BUFFER_FORMAT_YV12;
-	case PixelFormat::NV12: return NV_ENC_BUFFER_FORMAT_NV12;
-	case PixelFormat::YUV42010Bit: return NV_ENC_BUFFER_FORMAT_YUV420_10BIT;
-	case PixelFormat::YUV444: return NV_ENC_BUFFER_FORMAT_YUV444;
-	case PixelFormat::YUV44410Bit: return NV_ENC_BUFFER_FORMAT_YUV444_10BIT;
-	case PixelFormat::ARGB: return NV_ENC_BUFFER_FORMAT_ARGB;
-	case PixelFormat::ARGB10: return NV_ENC_BUFFER_FORMAT_ARGB10;
-	case PixelFormat::AYUV: return NV_ENC_BUFFER_FORMAT_AYUV;
-	case PixelFormat::ABGR: return NV_ENC_BUFFER_FORMAT_ABGR;
-	case PixelFormat::ABGR10: return NV_ENC_BUFFER_FORMAT_ABGR10;
-	}
-}
-
-inline GUID const *into_nv_encode( EncodeMethod method )
-{
-	switch ( method ) {
-	default:
-		vm::eprintln( "unknown encode method, default to EncodeMethod::H264" );
-	case EncodeMethod::H264: return &NV_ENC_CODEC_H264_GUID;
-	case EncodeMethod::HEVC: return &NV_ENC_CODEC_HEVC_GUID;
-	}
-}
-
 inline GUID const *into_nv_preset( EncodePreset preset )
 {
 	switch ( preset ) {
@@ -50,7 +22,7 @@ inline GUID const *into_nv_preset( EncodePreset preset )
 std::unique_ptr<NvEncoder> NvEncoderWrapper::_;
 cufx::drv::Context NvEncoderWrapper::ctx = 0;
 
-NvEncoderWrapper::NvEncoderWrapper( VideoCompressOptions const &opts )
+NvEncoderWrapper::NvEncoderWrapper( EncodeOptions const &opts )
 {
 	static NV_ENC_INITIALIZE_PARAMS params = { NV_ENC_INITIALIZE_PARAMS_VER };
 	static NV_ENC_CONFIG cfg = { NV_ENC_CONFIG_VER };
@@ -62,18 +34,18 @@ NvEncoderWrapper::NvEncoderWrapper( VideoCompressOptions const &opts )
 		_.reset( new NvEncoderCuda( ctx,
 									opts.width,
 									opts.height,
-									into_nv_format( opts.pixel_format ) ) );
+									NV_ENC_BUFFER_FORMAT_NV12 ) );
 		_->CreateDefaultEncoderParams( &params,
-									   *into_nv_encode( opts.encode_method ),
+									   NV_ENC_CODEC_H264_GUID,
 									   *into_nv_preset( opts.encode_preset ) );
 		_->CreateEncoder( &params );
 		_->Allocate();
 	} else {
-		_->m_eBufferFormat = into_nv_format( opts.pixel_format );
+		_->m_eBufferFormat = NV_ENC_BUFFER_FORMAT_NV12;
 		_->m_nWidth = opts.width;
 		_->m_nHeight = opts.height;
 		_->CreateDefaultEncoderParams( &params,
-									   *into_nv_encode( opts.encode_method ),
+									   NV_ENC_CODEC_H264_GUID,
 									   *into_nv_preset( opts.encode_preset ) );
 
 		NV_ENC_RECONFIGURE_PARAMS reconfigure_params;
@@ -147,6 +119,11 @@ void NvEncoderWrapper::encode( Reader &reader, Writer &out, std::vector<uint32_t
 
 		if ( nRead != nFrameSize ) break;
 	}
+}
+
+std::size_t NvEncoderWrapper::frame_size() const
+{
+	return _->GetFrameSize();
 }
 
 VM_END_MODULE()

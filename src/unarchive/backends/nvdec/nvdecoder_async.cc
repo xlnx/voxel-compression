@@ -1,4 +1,3 @@
-#include <varch/video_decompressor.hpp>
 
 #include <atomic>
 #include <cudafx/driver/context.hpp>
@@ -6,9 +5,9 @@
 #include <cudafx/transfer.hpp>
 #include <cudafx/array.hpp>
 #include <VMUtils/with.hpp>
-#include "nvdec/nvcuvid.h"
-#include "nvdec/NvCodecUtils.h"
-// #include "nvdec/NvDecoder.h"
+#include "nvcuvid.h"
+#include "NvCodecUtils.h"
+#include "nvdecoder_async.hpp"
 
 VM_BEGIN_MODULE( vol )
 
@@ -72,27 +71,27 @@ inline NVDECException NVDECException::makeNVDECException( const std::string &err
 		}                                                                                                        \
 	} while ( 0 )
 
-struct VideoDecompressorImpl;
+struct NvDecoderAsyncImpl;
 
 /* one slot <-> one temporary devptr processing task */
-struct VideoStreamPacketMapSlot
+struct NvBitStreamPacketMapSlot
 {
-	VideoStreamPacketMapSlot() :
+	NvBitStreamPacketMapSlot() :
 	  id( -1 )
 	{
 		CUDA_DRVAPI_CALL( cuStreamCreate( &stream, CU_STREAM_NON_BLOCKING ) );
 	}
-	~VideoStreamPacketMapSlot()
+	~NvBitStreamPacketMapSlot()
 	{
 		cuStreamDestroy( stream );
 	}
 
 public:
 	/* add one devptr to fill this slot */
-	VideoStreamPacketReleaseEvent map( CUvideodecoder decoder, int pid, CUdeviceptr *dp_src,
+	NvBitStreamPacketReleaseEvent map( CUvideodecoder decoder, int pid, CUdeviceptr *dp_src,
 									   unsigned *src_pitch, CUVIDPROCPARAMS *params )
 	{
-		VideoStreamPacketReleaseEvent evt;
+		NvBitStreamPacketReleaseEvent evt;
 		NVDEC_API_CALL( cuvidMapVideoFrame( decoder, pid, dp_src, src_pitch, params ) );
 		dp = *dp_src;
 		id.store( evt.val = counter() );
@@ -123,10 +122,10 @@ private:
 	CUdeviceptr dp = 0;
 	CUstream stream;
 	atomic_int64_t id;
-	friend class VideoDecompressorImpl;
+	friend class NvDecoderAsyncImpl;
 };
 
-struct VideoDecompressorImpl final : vm::NoCopy, vm::NoMove
+struct NvDecoderAsyncImpl final : vm::NoCopy, vm::NoMove
 {
 	uint8_t *get_packet( uint32_t len )
 	{
@@ -137,32 +136,27 @@ struct VideoDecompressorImpl final : vm::NoCopy, vm::NoMove
 		return _.data();
 	}
 
-	/* async decompress procedure */
-	void decompress( Reader &reader,
-					 std::function<void( VideoStreamPacket const & )> const &consumer );
+	/* async decode procedure */
+	void decode( Reader &reader,
+				 std::function<void( NvBitStreamPacket const & )> const &consumer );
 
 public:
-	VideoDecompressorImpl( VideoDecompressOptions const &opts ) :
+	NvDecoderAsyncImpl( DecodeOptions const &opts ) :
 	  io_queue_size( opts.io_queue_size )
 	{
 		NVDEC_API_CALL( cuvidCtxLockCreate( &ctxlock, ctx ) );
 
 		CUVIDPARSERPARAMS params = {};
+		params.CodecType = cudaVideoCodec_H264;
 		params.pfnSequenceCallback = handle_video_sequence_proc;
 		params.pfnDecodePicture = handle_picture_decode_proc;
 		params.pfnDisplayPicture = handle_picture_display_proc;
 		params.ulMaxNumDecodeSurfaces = io_queue_size;
 		params.ulMaxDisplayDelay = 2;  // 2..4, increase pipelining
 		params.pUserData = this;
-		params.CodecType = [&] {
-			switch ( opts.encode ) {
-			default: return cudaVideoCodec_H264;
-			case EncodeMethod::HEVC: return cudaVideoCodec_HEVC;
-			}
-		}();
 		NVDEC_API_CALL( cuvidCreateVideoParser( &parser, &params ) );
 	}
-	~VideoDecompressorImpl()
+	~NvDecoderAsyncImpl()
 	{
 		if ( decoder ) {
 			cuvidDestroyDecoder( decoder );
@@ -184,15 +178,15 @@ private:
 
 	static int CUDAAPI handle_video_sequence_proc( void *self, CUVIDEOFORMAT *params )
 	{
-		return reinterpret_cast<VideoDecompressorImpl *>( self )->handle_video_sequence( params );
+		return reinterpret_cast<NvDecoderAsyncImpl *>( self )->handle_video_sequence( params );
 	}
 	static int CUDAAPI handle_picture_decode_proc( void *self, CUVIDPICPARAMS *params )
 	{
-		return reinterpret_cast<VideoDecompressorImpl *>( self )->handle_picture_decode( params );
+		return reinterpret_cast<NvDecoderAsyncImpl *>( self )->handle_picture_decode( params );
 	}
 	static int CUDAAPI handle_picture_display_proc( void *self, CUVIDPARSERDISPINFO *params )
 	{
-		return reinterpret_cast<VideoDecompressorImpl *>( self )->handle_picture_display( params );
+		return reinterpret_cast<NvDecoderAsyncImpl *>( self )->handle_picture_display( params );
 	}
 
 public:
@@ -208,10 +202,10 @@ public:
 	int chroma_plains;
 
 private:
-	using Consumer = std::function<void( VideoStreamPacket const & )>;
+	using Consumer = std::function<void( NvBitStreamPacket const & )>;
 
 	vm::With<Consumer> consumer;
-	unique_ptr<VideoStreamPacketMapSlot[]> slots;
+	unique_ptr<NvBitStreamPacketMapSlot[]> slots;
 
 private:
 	cufx::drv::Context ctx = 0;
@@ -221,15 +215,15 @@ private:
 	CUvideodecoder decoder = nullptr;
 };
 
-struct VideoStreamPacketImpl
+struct NvBitStreamPacketImpl
 {
 	CUdeviceptr dp_src;
 	unsigned src_pitch;
 	CUstream stream;
-	VideoDecompressorImpl *decomp;
+	NvDecoderAsyncImpl *decomp;
 };
 
-void VideoStreamPacket::copy_async( cufx::MemoryView1D<unsigned char> const &dst, unsigned offset, unsigned length ) const
+void NvBitStreamPacket::copy_to( cufx::MemoryView1D<unsigned char> const &dst, unsigned offset, unsigned length ) const
 {
 	auto dp_dst = dst.ptr();
 	auto dp_dst_end = dp_dst + dst.size();
@@ -310,7 +304,7 @@ void VideoStreamPacket::copy_async( cufx::MemoryView1D<unsigned char> const &dst
 	// }
 }
 
-void VideoDecompressorImpl::decompress( Reader &reader, Consumer const &consumer )
+void NvDecoderAsyncImpl::decode( Reader &reader, Consumer const &consumer )
 {
 	packet_id = 0;
 	this->consumer.with(
@@ -337,7 +331,7 @@ void VideoDecompressorImpl::decompress( Reader &reader, Consumer const &consumer
 	  } );
 }
 
-void VideoDecompressorImpl::decode_and_advance( uint8_t *data, int len, uint32_t flags )
+void NvDecoderAsyncImpl::decode_and_advance( uint8_t *data, int len, uint32_t flags )
 {
 	CUVIDSOURCEDATAPACKET packet = {};
 	packet.payload = data;
@@ -349,7 +343,7 @@ void VideoDecompressorImpl::decode_and_advance( uint8_t *data, int len, uint32_t
 	NVDEC_API_CALL( cuvidParseVideoData( parser, &packet ) );
 }
 
-int VideoDecompressorImpl::handle_picture_display( CUVIDPARSERDISPINFO *info )
+int NvDecoderAsyncImpl::handle_picture_display( CUVIDPARSERDISPINFO *info )
 {
 	const auto pid = info->picture_index;
 
@@ -379,20 +373,20 @@ int VideoDecompressorImpl::handle_picture_display( CUVIDPARSERDISPINFO *info )
 	CUDA_DRVAPI_CALL( cuCtxPushCurrent( ctx ) );  //ck
 
 	{
-		VideoStreamPacketImpl packet_impl{ dp_src, src_pitch, slots[ pid ].stream, this };
-		VideoStreamPacket packet( packet_impl );
+		NvBitStreamPacketImpl packet_impl{ dp_src, src_pitch, slots[ pid ].stream, this };
+		NvBitStreamPacket packet( packet_impl );
 		packet.length = width * ( luma_height + chroma_height );
 		packet.id = packet_id++;
 		packet.release_event = evt;
 		( *consumer )( packet );
 	}
 
-	CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );  //ck
+	CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );	 //ck
 
 	return 1;
 }
 
-int VideoDecompressorImpl::handle_video_sequence( CUVIDEOFORMAT *format )
+int NvDecoderAsyncImpl::handle_video_sequence( CUVIDEOFORMAT *format )
 {
 	if ( decoder ) return io_queue_size;
 
@@ -402,7 +396,7 @@ int VideoDecompressorImpl::handle_video_sequence( CUVIDEOFORMAT *format )
 	}
 
 	CUDA_DRVAPI_CALL( cuCtxPushCurrent( ctx ) );
-	slots.reset( new VideoStreamPacketMapSlot[ io_queue_size ] );
+	slots.reset( new NvBitStreamPacketMapSlot[ io_queue_size ] );
 	CUDA_DRVAPI_CALL( cuCtxPopCurrent( nullptr ) );
 
 	CUVIDDECODECAPS caps = {};
@@ -483,23 +477,25 @@ int VideoDecompressorImpl::handle_video_sequence( CUVIDEOFORMAT *format )
 	return io_queue_size;
 }
 
-int VideoDecompressorImpl::handle_picture_decode( CUVIDPICPARAMS *params )
+int NvDecoderAsyncImpl::handle_picture_decode( CUVIDPICPARAMS *params )
 {
 	NVDEC_API_CALL( cuvidDecodePicture( decoder, params ) );
 	return 1;
 }
 
-VideoDecompressor::VideoDecompressor( VideoDecompressOptions const &opts ) :
-  _( new VideoDecompressorImpl( opts ) )
+NvDecoderAsync::NvDecoderAsync( DecodeOptions const &opts ) :
+  _( new NvDecoderAsyncImpl( opts ) )
 {
 }
-VideoDecompressor::~VideoDecompressor()
+
+NvDecoderAsync::~NvDecoderAsync()
 {
 }
-void VideoDecompressor::decompress( Reader &reader,
-									std::function<void( VideoStreamPacket const & )> const &consumer )
+
+void NvDecoderAsync::decode( Reader &reader,
+							 std::function<void( NvBitStreamPacket const & )> const &consumer )
 {
-	_->decompress( reader, consumer );
+	_->decode( reader, consumer );
 }
 
 VM_END_MODULE()

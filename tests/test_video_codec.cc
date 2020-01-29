@@ -47,10 +47,8 @@
 
 // 	vector<vector<char>> raw_input_blocks;
 
-// 	auto comp_opts = VideoCompressOptions{}
-// 					   .set_encode_method( EncodeMethod::H264 )
+// 	auto comp_opts = EncodeOptions{}
 // 					   .set_encode_preset( EncodePreset::Default )
-// 					   .set_pixel_format( PixelFormat::IYUV )
 // 					   .set_width( width )
 // 					   .set_height( height )
 // 					   .set_batch_frames( batch_frames );
@@ -75,9 +73,8 @@
 
 // 	auto frame_offset = video_compressor.frame_offset();
 
-// 	VideoDecompressor deVideoCompressor;
-// 	auto opts = VideoDecompressOptions{}
-// 				  .set_encode( EncodeMethod::H264 )
+// 	NvDecoderAsync deVideoCompressor;
+// 	auto opts = DecodeOptions{}
 // 				  .set_io_queue_size( 1 );
 // 	auto data_ptr = compressed.data();
 
@@ -86,9 +83,9 @@
 // 		  data_ptr + frame_offset[ 0 ],
 // 		  frame_offset[ 1 ] - frame_offset[ 0 ] );
 // 		vector<size_t> buffer_size;
-// 		deVideoCompressor.decompress(
+// 		deVideoCompressor.decode(
 // 		  first_frame,
-// 		  [&]( VideoStreamPacket const &packet ) {
+// 		  [&]( NvBitStreamPacket const &packet ) {
 // 			  buffer_size.emplace_back( packet.length );
 // 		  } );
 // 		ASSERT_EQ( buffer_size, vector<size_t>{ frame_size } );
@@ -98,9 +95,9 @@
 // 		  data_ptr + frame_offset[ 0 ],
 // 		  frame_offset[ 1 ] - frame_offset[ 0 ] );
 // 		vector<size_t> buffer_size;
-// 		deVideoCompressor.decompress(
+// 		deVideoCompressor.decode(
 // 		  first_frame,
-// 		  [&]( VideoStreamPacket const &packet ) {
+// 		  [&]( NvBitStreamPacket const &packet ) {
 // 			  buffer_size.emplace_back( packet.length );
 // 		  } );
 // 		ASSERT_EQ( buffer_size, vector<size_t>{ frame_size } );
@@ -110,9 +107,9 @@
 // 		  data_ptr + frame_offset[ 1 ],
 // 		  frame_offset[ 4 ] - frame_offset[ 1 ] );
 // 		vector<size_t> buffer_size;
-// 		deVideoCompressor.decompress(
+// 		deVideoCompressor.decode(
 // 		  frame_1_3,
-// 		  [&]( VideoStreamPacket const &packet ) {
+// 		  [&]( NvBitStreamPacket const &packet ) {
 // 			  buffer_size.emplace_back( packet.length );
 // 		  } );
 // 		ASSERT_EQ( buffer_size, ( vector<size_t>{ frame_size, frame_size, frame_size } ) );
@@ -122,9 +119,9 @@
 // 		  data_ptr + frame_offset[ 0 ],
 // 		  frame_offset[ 4 ] - frame_offset[ 0 ] );
 // 		vector<size_t> buffer_size;
-// 		deVideoCompressor.decompress(
+// 		deVideoCompressor.decode(
 // 		  frame_0_3,
-// 		  [&]( VideoStreamPacket const &packet ) {
+// 		  [&]( NvBitStreamPacket const &packet ) {
 // 			  buffer_size.emplace_back( packet.length );
 // 		  } );
 // 		ASSERT_EQ( buffer_size, ( vector<size_t>{ frame_size, frame_size, frame_size, frame_size } ) );
@@ -146,10 +143,8 @@
 
 // 	vector<vector<char>> raw_input_blocks;
 
-// 	auto comp_opts = VideoCompressOptions{}
-// 					   .set_encode_method( EncodeMethod::H264 )
+// 	auto comp_opts = EncodeOptions{}
 // 					   .set_encode_preset( EncodePreset::Default )
-// 					   .set_pixel_format( PixelFormat::IYUV )
 // 					   .set_width( width )
 // 					   .set_height( height )
 // 					   .set_batch_frames( batch_frames );

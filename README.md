@@ -18,7 +18,7 @@ ifstream is( "256-3.h264.vol", std::ios::ate | std::ios::binary );
 auto ilen = is.tellg();
 
 vol::StreamReader reader( is, 0, ilen );
-vol::voxel::VideoDecompressor decomp( reader );
+vol::voxel::NvDecoderAsync decomp( reader );
 auto block_dim = vol::voxel::Idx{}
   .set_x(256)
   .set_y(256)

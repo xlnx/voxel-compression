@@ -5,7 +5,10 @@
 #include <varch/utils/padded_reader.hpp>
 #include <varch/utils/filter_reader.hpp>
 #include <varch/utils/self_owned_reader.hpp>
-#include "nvencoder_wrapper.hpp"
+#include "backends/nvenc/nvencoder_wrapper.hpp"
+#ifdef VARCH_OPENH264_CODEC
+#include "backends/openh264/isvc_encoder_wrapper.hpp"
+#endif
 #include "video_compressor.hpp"
 
 VM_BEGIN_MODULE( vol )
@@ -14,15 +17,32 @@ using namespace std;
 
 struct VideoCompressorImpl
 {
-	VideoCompressorImpl( Writer &out, VideoCompressOptions const &opts ) :
-	  //   opts( opts ),
+	VideoCompressorImpl( Writer &out, EncodeOptions const &opts ) :
 	  out( out )
 	{
 		static mutex mut;
 		unique_lock<mutex> lk( mut );
-		_.reset( new NvEncoderWrapper( opts ) );
+		switch ( opts.device ) {
+		case ComputeDevice::Cuda:
+			encoder.reset( new NvEncoderWrapper( opts ) );
+			break;
+		case ComputeDevice::Cpu:
+		CPU:
+#ifdef VARCH_OPENH264_CODEC
+			encoder.reset( new IsvcEncoderWrapper( opts ) );
+#else
+			throw std::logic_error( "please recompile with openh264 codec support" );
+#endif
+			break;
+		default:
+			try {
+				encoder.reset( new NvEncoderWrapper( opts ) );
+			} catch ( std::exception &e ) {
+				goto CPU;
+			}
+		}
 		nframe_batch = opts.batch_frames;
-		frame_size = _->_->GetFrameSize();
+		frame_size = encoder->frame_size();
 		worker.reset( new thread( [this] { work_loop(); } ) );
 	}
 
@@ -52,7 +72,7 @@ struct VideoCompressorImpl
 				if ( should_flush ) {
 					should_flush = false;
 				}
-				vm::println( "acquired {} readers", readers.size() );
+				// vm::println( "acquired {} readers", readers.size() );
 				input_readers.swap( readers );
 				auto nframes = total_size / frame_size;
 				nframes_size = nframes * frame_size;
@@ -66,7 +86,7 @@ struct VideoCompressorImpl
 						// vm::println( "!!{}", readers.size() );
 					}
 				}
-				vm::println( "saved {} readers", readers.size() );
+				// vm::println( "saved {} readers", readers.size() );
 				total_size -= nframes_size;
 				emitted_frames += nframes;
 			}
@@ -79,7 +99,7 @@ struct VideoCompressorImpl
 					part_reader.seek( 0 );
 					vector<uint32_t> frame_len;
 					// vm::println( "encode with {} blocks", input_readers.size() );
-					this->_->encode( part_reader, out, frame_len );
+					this->encoder->encode( part_reader, out, frame_len );
 					for ( auto &len : frame_len ) {
 						frame_offset.emplace_back( frame_offset.back() + len );
 					}
@@ -152,9 +172,10 @@ struct VideoCompressorImpl
 		finish_cv.wait( work_lk );
 	}
 
-	// VideoCompressOptions opts;
+public:
+	// EncodeOptions opts;
 	Writer &out;
-	shared_ptr<NvEncoderWrapper> _;
+	shared_ptr<IEncoder> encoder;
 	vector<vm::Arc<Reader>> readers;
 	size_t total_size = 0;
 	size_t frame_size, nframe_batch;
@@ -167,12 +188,7 @@ struct VideoCompressorImpl
 	unique_ptr<thread> worker;
 };
 
-VideoCompressOptions::VideoCompressOptions() :
-  device( CompressDevice::Cuda )
-{
-}
-
-VideoCompressor::VideoCompressor( Writer &out, VideoCompressOptions const &opts ) :
+VideoCompressor::VideoCompressor( Writer &out, EncodeOptions const &opts ) :
   _( new VideoCompressorImpl( out, opts ) )
 {
 }

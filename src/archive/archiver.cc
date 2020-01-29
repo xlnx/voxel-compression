@@ -1,10 +1,9 @@
-#include <varch/archiver.hpp>
-
 #include <thread>
 #include <VMat/geometry.h>
 #include <VMat/numeric.h>
 #include <VMUtils/timer.hpp>
 #include <VMFoundation/rawreader.h>
+#include <varch/archive/archiver.hpp>
 #include <varch/utils/common.hpp>
 #include <varch/utils/unbounded_io.hpp>
 #include "video_compressor.hpp"
@@ -295,8 +294,8 @@ public:
 						.set_raw( raw )
 						.set_dim( dim )
 						.set_adjusted( adjusted )
-						.set_frame_size( video_compressor.frame_size() )
-						.set_encode_method();
+						.set_frame_size( video_compressor.frame_size() );
+
 		StreamWriter writer( output, 0, sizeof( Header ) );
 		writer.write_typed( header );
 
