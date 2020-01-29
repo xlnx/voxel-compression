@@ -1,0 +1,1 @@
+file(GLOB_RECURSE SOURCES *.cc)
