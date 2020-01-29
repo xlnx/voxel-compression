@@ -26,7 +26,7 @@ struct StatisticsCollectorImpl
 
 		vector<unsigned char> buffer( N.Prod() );
 
-		unarchiver.unarchive_into( idx, buffer );
+		unarchiver.unarchive_to( idx, buffer );
 		dst.src.compute_from( buffer );
 
 		if ( raw_input ) {

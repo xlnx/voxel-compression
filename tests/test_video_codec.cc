@@ -48,9 +48,7 @@
 // 	vector<vector<char>> raw_input_blocks;
 
 // 	auto comp_opts = VideoCompressOptions{}
-// 					   .set_encode_method( EncodeMethod::H264 )
 // 					   .set_encode_preset( EncodePreset::Default )
-// 					   .set_pixel_format( PixelFormat::IYUV )
 // 					   .set_width( width )
 // 					   .set_height( height )
 // 					   .set_batch_frames( batch_frames );
@@ -77,7 +75,6 @@
 
 // 	NvDecoderAsync deVideoCompressor;
 // 	auto opts = VideoDecompressOptions{}
-// 				  .set_encode( EncodeMethod::H264 )
 // 				  .set_io_queue_size( 1 );
 // 	auto data_ptr = compressed.data();
 
@@ -86,7 +83,7 @@
 // 		  data_ptr + frame_offset[ 0 ],
 // 		  frame_offset[ 1 ] - frame_offset[ 0 ] );
 // 		vector<size_t> buffer_size;
-// 		deVideoCompressor.decompress(
+// 		deVideoCompressor.decode(
 // 		  first_frame,
 // 		  [&]( NvBitStreamPacket const &packet ) {
 // 			  buffer_size.emplace_back( packet.length );
@@ -98,7 +95,7 @@
 // 		  data_ptr + frame_offset[ 0 ],
 // 		  frame_offset[ 1 ] - frame_offset[ 0 ] );
 // 		vector<size_t> buffer_size;
-// 		deVideoCompressor.decompress(
+// 		deVideoCompressor.decode(
 // 		  first_frame,
 // 		  [&]( NvBitStreamPacket const &packet ) {
 // 			  buffer_size.emplace_back( packet.length );
@@ -110,7 +107,7 @@
 // 		  data_ptr + frame_offset[ 1 ],
 // 		  frame_offset[ 4 ] - frame_offset[ 1 ] );
 // 		vector<size_t> buffer_size;
-// 		deVideoCompressor.decompress(
+// 		deVideoCompressor.decode(
 // 		  frame_1_3,
 // 		  [&]( NvBitStreamPacket const &packet ) {
 // 			  buffer_size.emplace_back( packet.length );
@@ -122,7 +119,7 @@
 // 		  data_ptr + frame_offset[ 0 ],
 // 		  frame_offset[ 4 ] - frame_offset[ 0 ] );
 // 		vector<size_t> buffer_size;
-// 		deVideoCompressor.decompress(
+// 		deVideoCompressor.decode(
 // 		  frame_0_3,
 // 		  [&]( NvBitStreamPacket const &packet ) {
 // 			  buffer_size.emplace_back( packet.length );
@@ -147,9 +144,7 @@
 // 	vector<vector<char>> raw_input_blocks;
 
 // 	auto comp_opts = VideoCompressOptions{}
-// 					   .set_encode_method( EncodeMethod::H264 )
 // 					   .set_encode_preset( EncodePreset::Default )
-// 					   .set_pixel_format( PixelFormat::IYUV )
 // 					   .set_width( width )
 // 					   .set_height( height )
 // 					   .set_batch_frames( batch_frames );

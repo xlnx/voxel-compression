@@ -4,6 +4,7 @@
 #include <VMUtils/concepts.hpp>
 #include <VMUtils/attributes.hpp>
 #include <VMUtils/modules.hpp>
+#include <cudafx/memory.hpp>
 #include "io.hpp"
 
 VM_BEGIN_MODULE( vol )
@@ -15,12 +16,6 @@ using namespace std;
 
 VM_EXPORT
 {
-	enum class EncodeMethod : uint64_t
-	{
-		H264,
-		HEVC
-	};
-
 	enum class EncodePreset : uint32_t
 	{
 		Default,
@@ -33,20 +28,6 @@ VM_EXPORT
 		LosslessDefault,
 		LosslessHP
 	};
-	enum class PixelFormat : uint32_t
-	{
-		IYUV,
-		YV12,
-		NV12,
-		YUV42010Bit,
-		YUV444,
-		YUV44410Bit,
-		ARGB,
-		ARGB10,
-		AYUV,
-		ABGR,
-		ABGR10
-	};
 	enum class CompressDevice : uint32_t
 	{
 		Cuda,	 /* cuda sdk required */
@@ -58,16 +39,13 @@ VM_EXPORT
 		VideoCompressOptions();
 
 		VM_DEFINE_ATTRIBUTE( CompressDevice, device );
-		VM_DEFINE_ATTRIBUTE( EncodeMethod, encode_method ) = EncodeMethod::H264;
 		VM_DEFINE_ATTRIBUTE( EncodePreset, encode_preset ) = EncodePreset::Default;
 		VM_DEFINE_ATTRIBUTE( unsigned, width ) = 1024;
 		VM_DEFINE_ATTRIBUTE( unsigned, height ) = 1024;
 		VM_DEFINE_ATTRIBUTE( unsigned, batch_frames ) = 64;
-		VM_DEFINE_ATTRIBUTE( PixelFormat, pixel_format ) = PixelFormat::IYUV;
 	};
 	struct VideoDecompressOptions
 	{
-		VM_DEFINE_ATTRIBUTE( EncodeMethod, encode );
 		VM_DEFINE_ATTRIBUTE( unsigned, io_queue_size ) = 4;
 	};
 
@@ -126,6 +104,19 @@ VM_EXPORT
 			return os;
 		}
 	};
+
+	struct Packet : vm::Dynamic, vm::NoCopy, vm::NoMove
+	{
+		void copy_to( cufx::MemoryView1D<unsigned char> const &dst ) const
+		{
+			return copy_to( dst, 0, length );
+		}
+		virtual void copy_to( cufx::MemoryView1D<unsigned char> const &dst,
+							  unsigned offset, unsigned length ) const = 0;
+
+	public:
+		unsigned length, id;
+	};
 }
 
 struct Header
@@ -138,7 +129,7 @@ struct Header
 	VM_DEFINE_ATTRIBUTE( uint64_t, block_size );
 	VM_DEFINE_ATTRIBUTE( uint64_t, block_inner );
 	VM_DEFINE_ATTRIBUTE( uint64_t, padding );
-	VM_DEFINE_ATTRIBUTE( EncodeMethod, encode_method );
+	VM_DEFINE_ATTRIBUTE( uint64_t, encode_method ) = 0;
 	VM_DEFINE_ATTRIBUTE( uint64_t, frame_size );
 
 	friend std::ostream &operator<<( std::ostream &os, Header const &header )

@@ -294,8 +294,10 @@ public:
 						.set_raw( raw )
 						.set_dim( dim )
 						.set_adjusted( adjusted )
-						.set_frame_size( video_compressor.frame_size() )
-						.set_encode_method();
+						.set_frame_size( video_compressor.frame_size() );
+
+		vm::println( "frame_size: asdasd {}", video_compressor.frame_size() );
+
 		StreamWriter writer( output, 0, sizeof( Header ) );
 		writer.write_typed( header );
 

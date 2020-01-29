@@ -37,7 +37,6 @@ int main( int argc, char **argv )
 	a.add<size_t>( "memlimit", 'm', "maximum memory limit in gb", false, system_memory_gb / 2 );
 	a.add<int>( "padding", 'p', "block padding", false, 2, cmdline::oneof<int>( 0, 1, 2 ) );
 	a.add<int>( "side", 's', "block size in log(voxel)", false, 6, cmdline::oneof<int>( 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 ) );
-	a.add<string>( "compression", 'c', "block compression method: h264/hevc/lz4/none", false, "h264", cmdline::oneof<string>( "h264", "hevc", "lz4", "none" ) );
 	a.add<string>( "device", 'd', "video compression device: default/cuda/graphics", false, "default", cmdline::oneof<string>( "default", "cuda", "graphics" ) );
 	a.add<string>( "of", 'o', "output filename", true );
 
@@ -51,7 +50,6 @@ int main( int argc, char **argv )
 	auto z = a.get<int>( "z" );
 	auto padding = a.get<int>( "padding" );
 	auto log = a.get<int>( "side" );
-	auto comp = a.get<string>( "compression" );
 	auto dev = a.get<string>( "device" );
 	auto mem = a.get<size_t>( "memlimit" );
 
@@ -65,32 +63,19 @@ int main( int argc, char **argv )
 					  .set_suggest_mem_gb( mem )
 					  .set_input( input );
 
-		if ( comp == "h264" || comp == "hevc" ) {
-			auto &compress_opts = opts.compress_opts;
-			compress_opts = VideoCompressOptions{}
-							  .set_encode_preset( EncodePreset::Default )
-							  .set_pixel_format( PixelFormat::NV12 )
-							  .set_width( 1024 )
-							  .set_height( 1024 )
-							  .set_batch_frames( 16 );
-			if ( comp == "h264" ) {
-				compress_opts.set_encode_method( EncodeMethod::H264 );
-			} else {
-				compress_opts.set_encode_method( EncodeMethod::HEVC );
-			}
-			if ( dev == "cuda" ) {
-				compress_opts.set_device( CompressDevice::Cuda );
-			} else if ( dev == "graphics" ) {
-				compress_opts.set_device( CompressDevice::Graphics );
-			}
-		} else if ( comp == "lz4" ) {
-			throw runtime_error( "unimplemented lz4" );
-		} else if ( comp != "none" ) {
-			throw "unreachable";
+		auto &compress_opts = opts.compress_opts;
+		compress_opts = VideoCompressOptions{}
+						  .set_encode_preset( EncodePreset::Default )
+						  .set_width( 1024 )
+						  .set_height( 1024 )
+						  .set_batch_frames( 16 );
+		if ( dev == "cuda" ) {
+			compress_opts.set_device( CompressDevice::Cuda );
+		} else if ( dev == "graphics" ) {
+			compress_opts.set_device( CompressDevice::Graphics );
 		}
 
-		vm::println( "using compression method: {}", comp );
-		opts.set_output( vm::fmt( "{}.{}.comp", output, comp ) );
+		opts.set_output( vm::fmt( "{}.h264", output ) );
 
 		{
 			Archiver archiver( opts );

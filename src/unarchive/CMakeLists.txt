@@ -33,6 +33,7 @@ else()
     ${PROJECT_SOURCE_DIR}/lib/linux/stubs/x86_64/libnvcuvid.so
   )
 endif()
+target_link_libraries(voxel_unarchive openh264)
 
 target_include_directories(voxel_unarchive PUBLIC
   ${PROJECT_SOURCE_DIR}/include

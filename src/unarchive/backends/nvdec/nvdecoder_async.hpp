@@ -10,18 +10,15 @@
 #include <cudafx/array.hpp>
 #include <varch/utils/common.hpp>
 #include <varch/utils/io.hpp>
+#include "../../idecoder.hpp"
 
 VM_BEGIN_MODULE( vol )
 
 struct NvDecoderAsyncImpl;
 
-struct VideoDecompressOptions
-{
-	VM_DEFINE_ATTRIBUTE( EncodeMethod, encode );
-	VM_DEFINE_ATTRIBUTE( unsigned, io_queue_size ) = 4;
-};
-
 struct NvBitStreamPacketMapSlot;
+
+struct NvBitStreamPacketImpl;
 
 struct NvBitStreamPacketReleaseEvent
 {
@@ -33,35 +30,32 @@ private:
 	friend class NvBitStreamPacketMapSlot;
 };
 
-struct NvBitStreamPacketImpl;
-
-struct NvBitStreamPacket : vm::NoCopy, vm::NoMove
+struct NvBitStreamPacket : Packet
 {
 	NvBitStreamPacket( NvBitStreamPacketImpl const &_ ) :
 	  _( _ ) {}
 
-	void copy_async( cufx::MemoryView1D<unsigned char> const &dst ) const
-	{
-		return copy_async( dst, 0, length );
-	}
-	void copy_async( cufx::MemoryView1D<unsigned char> const &dst, unsigned offset, unsigned length ) const;
+	void copy_to( cufx::MemoryView1D<unsigned char> const &dst, unsigned offset, unsigned length ) const;
 
 public:
-	unsigned length;
-	unsigned id;
 	NvBitStreamPacketReleaseEvent release_event;
 
 private:
 	NvBitStreamPacketImpl const &_;
 };
 
-struct NvDecoderAsync final : vm::NoCopy
+struct NvDecoderAsync final : IDecoder
 {
 	NvDecoderAsync( VideoDecompressOptions const &opts = VideoDecompressOptions{} );
 	~NvDecoderAsync();
 
-	void decompress( Reader &reader,
-					 std::function<void( NvBitStreamPacket const & )> const &consumer );
+	void decode( Reader &reader,
+				 std::function<void( Packet const & )> const &consumer ) override
+	{
+		decode( reader, [&]( NvBitStreamPacket const &pkt ) { consumer( pkt ); } );
+	}
+	void decode( Reader &reader,
+				 std::function<void( NvBitStreamPacket const & )> const &consumer );
 
 private:
 	vm::Box<NvDecoderAsyncImpl> _;
